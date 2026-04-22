@@ -1,0 +1,14 @@
+{
+  "name": "power-platform-skills-1ds-poc",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Proof-of-concept: emit sample 1DS telemetry events to the INTERNAL test cluster using the same SDK pattern as powerplatform-vscode.",
+  "main": "emit.js",
+  "scripts": {
+    "emit": "node emit.js"
+  },
+  "dependencies": {
+    "@microsoft/1ds-core-js": "^4.3.3",
+    "@microsoft/1ds-post-js": "^4.3.3"
+  }
+}
