@@ -13,7 +13,7 @@ Switch the site between Public and Private.
 **Command**
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/site-visibility/scripts/site-visibility.js" \
+node "${CLAUDE_PLUGIN_ROOT}/skills/manage-site-visibility/scripts/site-visibility.js" \
   --setVisibility \
   --portalId <guid> \
   --value <Public|Private> \

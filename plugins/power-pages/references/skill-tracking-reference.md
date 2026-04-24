@@ -40,12 +40,12 @@ If the tracking script creates or updates site setting YAML files, include those
 | add-server-logic | AddServerLogic | Site/AI/Skills/AddServerLogic |
 | add-cloud-flow | AddCloudFlow | Site/AI/Skills/AddCloudFlow |
 | integrate-backend | IntegrateBackend | Site/AI/Skills/IntegrateBackend |
-| site-visibility | SiteVisibility | Site/AI/Skills/SiteVisibility |
-| web-application-firewall | WebApplicationFirewall | Site/AI/Skills/WebApplicationFirewall |
-| security-scan | SecurityScan | Site/AI/Skills/SecurityScan |
-| security-headers | SecurityHeaders | Site/AI/Skills/SecurityHeaders |
-| code-analysis | CodeAnalysis | Site/AI/Skills/CodeAnalysis |
-| security | Security | Site/AI/Skills/Security |
+| manage-site-visibility | ManageSiteVisibility | Site/AI/Skills/ManageSiteVisibility |
+| manage-web-application-firewall | ManageWebApplicationFirewall | Site/AI/Skills/ManageWebApplicationFirewall |
+| manage-security-scan | ManageSecurityScan | Site/AI/Skills/ManageSecurityScan |
+| manage-security-headers | ManageSecurityHeaders | Site/AI/Skills/ManageSecurityHeaders |
+| analyze-code | AnalyzeCode | Site/AI/Skills/AnalyzeCode |
+| review-security | ReviewSecurity | Site/AI/Skills/ReviewSecurity |
 
 ## YAML Format
 

@@ -4,7 +4,7 @@
 // parallel and aggregate the results into a single JSON blob the meta-skill
 // can consume in one shot.
 //
-// Why this exists: Phase 3 of the /security meta-skill otherwise has to
+// Why this exists: Phase 3 of the /review-security meta-skill otherwise has to
 // issue 7+ sequential reads (website lookup, WAF status, WAF rules, scan
 // ongoing check, scan report, scan score, HTTP/* audit, language detect).
 // Running them sequentially stretches a fast phase into minutes of wall
@@ -37,7 +37,7 @@ const EXIT = Object.freeze({
 });
 
 // Root of the power-pages plugin. This script lives at:
-//   plugins/power-pages/skills/security/scripts/posture-snapshot.js
+//   plugins/power-pages/skills/review-security/scripts/posture-snapshot.js
 // so the plugin root is four directories up.
 const PLUGIN_ROOT = path.resolve(__dirname, '..', '..', '..');
 
@@ -134,19 +134,19 @@ function siteVisibilityPath() {
 }
 
 function wafScriptPath() {
-  return path.join(PLUGIN_ROOT, 'skills', 'web-application-firewall', 'scripts', 'waf.js');
+  return path.join(PLUGIN_ROOT, 'skills', 'manage-web-application-firewall', 'scripts', 'waf.js');
 }
 
 function scanScriptPath() {
-  return path.join(PLUGIN_ROOT, 'skills', 'security-scan', 'scripts', 'scan.js');
+  return path.join(PLUGIN_ROOT, 'skills', 'manage-security-scan', 'scripts', 'scan.js');
 }
 
 function headersScriptPath() {
-  return path.join(PLUGIN_ROOT, 'skills', 'security-headers', 'scripts', 'security-headers.js');
+  return path.join(PLUGIN_ROOT, 'skills', 'manage-security-headers', 'scripts', 'security-headers.js');
 }
 
 function languagesScriptPath() {
-  return path.join(PLUGIN_ROOT, 'skills', 'code-analysis', 'scripts', 'detect-languages.js');
+  return path.join(PLUGIN_ROOT, 'skills', 'analyze-code', 'scripts', 'detect-languages.js');
 }
 
 /**

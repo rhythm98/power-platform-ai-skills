@@ -40,7 +40,7 @@ Returns the current WAF state for the site, or `null` when WAF is not applicable
 **Command**
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/web-application-firewall/scripts/waf.js" \
+node "${CLAUDE_PLUGIN_ROOT}/skills/manage-web-application-firewall/scripts/waf.js" \
   --status \
   --portalId <guid>
 ```
@@ -78,7 +78,7 @@ Returns the current rule configuration — custom rules and managed-rule overrid
 **Command**
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/web-application-firewall/scripts/waf.js" \
+node "${CLAUDE_PLUGIN_ROOT}/skills/manage-web-application-firewall/scripts/waf.js" \
   --rules \
   --portalId <guid> \
   [--ruleType <Custom|Managed>]
@@ -121,7 +121,7 @@ Starts enabling WAF on the site. Returns immediately; provisioning continues ser
 **Command**
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/web-application-firewall/scripts/waf.js" \
+node "${CLAUDE_PLUGIN_ROOT}/skills/manage-web-application-firewall/scripts/waf.js" \
   --enable \
   --portalId <guid> \
   [--dry-run]
@@ -167,7 +167,7 @@ Starts disabling WAF on the site. Same response and error model as `--enable`.
 **Command**
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/web-application-firewall/scripts/waf.js" \
+node "${CLAUDE_PLUGIN_ROOT}/skills/manage-web-application-firewall/scripts/waf.js" \
   --disable \
   --portalId <guid> \
   [--dry-run]
@@ -184,7 +184,7 @@ To remove individual custom rules by name, use [`--delete-custom`](#delete-custo
 **Command**
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/web-application-firewall/scripts/waf.js" \
+node "${CLAUDE_PLUGIN_ROOT}/skills/manage-web-application-firewall/scripts/waf.js" \
   --create-rules \
   --portalId <guid> \
   --body <file> \
@@ -232,7 +232,7 @@ Removes the named custom rules. Returns immediately; deletion is asynchronous.
 **Command**
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/web-application-firewall/scripts/waf.js" \
+node "${CLAUDE_PLUGIN_ROOT}/skills/manage-web-application-firewall/scripts/waf.js" \
   --delete-custom \
   --portalId <guid> \
   --names <file> \

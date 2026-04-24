@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-// check-tools.js — detect which of the code-analysis skill's supported
+// check-tools.js — detect which of the analyze-code skill's supported
 // CLI tools are installed. Does NOT install, download, or extract any
 // tool — for each missing tool, the output includes a canonical install
 // pointer that the skill surfaces to the user verbatim.
@@ -63,7 +63,7 @@ const HELP = `Usage:
   check-tools.js --tool <semgrep|codeql|trivy>
   check-tools.js --help
 
-Detects which of the code-analysis skill's supported CLI tools are on PATH.
+Detects which of the analyze-code skill's supported CLI tools are on PATH.
 Does NOT install, download, or extract anything. Each missing tool's output
 includes an install pointer the skill surfaces to the user.
 

@@ -1,5 +1,5 @@
 ---
-name: security-headers
+name: manage-security-headers
 description: >-
   Manages HTTP security headers for a Power Pages site — Content Security
   Policy (CSP) including nonce handling and report-only mode, CORS
@@ -62,7 +62,7 @@ At the start of Phase 1, create one task per phase with `TaskCreate`. Mark `in_p
 
 Run:
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/security-headers/scripts/security-headers.js" \
+node "${CLAUDE_PLUGIN_ROOT}/skills/manage-security-headers/scripts/security-headers.js" \
   --audit --projectRoot "<project-root>"
 ```
 
@@ -89,7 +89,7 @@ Use `AskUserQuestion` to confirm intent. The skill supports five kinds of change
 **For any CSP change, run the allowlist discovery first.** The Power Pages runtime does NOT merge a baseline with your CSP — your directive must include both the site's own external sources AND the runtime's required sources, or runtime resources fail to load and parts of the site will not render. Run:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/security-headers/scripts/scan-external-urls.js" \
+node "${CLAUDE_PLUGIN_ROOT}/skills/manage-security-headers/scripts/scan-external-urls.js" \
   --projectRoot "<project-root>"
 ```
 
@@ -110,7 +110,7 @@ Reference: `references/headers.md` for command shapes, exit codes, and header-sp
 
 **Writing a header:**
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/security-headers/scripts/security-headers.js" \
+node "${CLAUDE_PLUGIN_ROOT}/skills/manage-security-headers/scripts/security-headers.js" \
   --write --projectRoot "<project-root>" \
   --name "HTTP/<Header-Name>" \
   --value "<header-value>" \
@@ -154,9 +154,9 @@ If a verify fails, show the discrepancy and stop — do not iterate without the 
 
 > Reference: `${CLAUDE_PLUGIN_ROOT}/references/skill-tracking-reference.md`
 
-Follow the skill-tracking instructions in the reference to record this skill's usage. Use `--skillName "SecurityHeaders"`.
+Follow the skill-tracking instructions in the reference to record this skill's usage. Use `--skillName "ManageSecurityHeaders"`.
 
-Close by asking: "Anything else on headers, or done?" If the user wants a broader security review, suggest `/security`.
+Close by asking: "Anything else on headers, or done?" If the user wants a broader security review, suggest `/review-security`.
 
 ## Progress tracking table
 

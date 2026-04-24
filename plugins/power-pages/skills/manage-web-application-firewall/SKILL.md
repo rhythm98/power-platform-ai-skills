@@ -1,5 +1,5 @@
 ---
-name: web-application-firewall
+name: manage-web-application-firewall
 description: >-
   Manages the Power Pages Web Application Firewall (WAF) — enables or
   disables WAF, adds, updates, and removes custom rules for geo-blocking,
@@ -64,7 +64,7 @@ At the start of Phase 1, create one task per phase with `TaskCreate`. Mark `in_p
 
 Run:
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/web-application-firewall/scripts/waf.js" --status --portalId <guid>
+node "${CLAUDE_PLUGIN_ROOT}/skills/manage-web-application-firewall/scripts/waf.js" --status --portalId <guid>
 ```
 
 Interpret the three possible outcomes:
@@ -77,7 +77,7 @@ If the current state already matches the user's intent (e.g., they asked to enab
 
 If the user plans to change rules, also fetch the current rules:
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/web-application-firewall/scripts/waf.js" --rules --portalId <guid>
+node "${CLAUDE_PLUGIN_ROOT}/skills/manage-web-application-firewall/scripts/waf.js" --rules --portalId <guid>
 ```
 
 Keep the current rule set in your response context — Phase 3 builds the target state by merging against it.
@@ -98,7 +98,7 @@ For rule-configuration operations the skill uses a plan-validate-execute pattern
 1. **Plan** — write the target rule set to a transient JSON file at the project root (for example, `waf-plan.json`). Include ALL custom rules you want to end up with, not just the additions. Submitting a partial body can have unpredictable effects on rules you did not mention, so a complete target set is the safe default. The file is working state only — Phase 6 deletes it once the apply succeeds.
 2. **Validate** — run the same command with `--dry-run`:
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/skills/web-application-firewall/scripts/waf.js" \
+   node "${CLAUDE_PLUGIN_ROOT}/skills/manage-web-application-firewall/scripts/waf.js" \
      --create-rules --portalId <guid> --body waf-plan.json --dry-run
    ```
    The command re-parses the body, re-validates its schema, checks for duplicate names and priorities, and verifies rate-limit windows are in range — all without contacting the service. Fix any errors and re-run until clean.
@@ -187,9 +187,9 @@ For the **sync operation** (`--create-rules`), the command's stdout already cont
 
 > Reference: `${CLAUDE_PLUGIN_ROOT}/references/skill-tracking-reference.md`
 
-Follow the skill-tracking instructions in the reference to record this skill's usage. Use `--skillName "WebApplicationFirewall"`.
+Follow the skill-tracking instructions in the reference to record this skill's usage. Use `--skillName "ManageWebApplicationFirewall"`.
 
-Close by asking: "Anything else on WAF, or done?" If the user wants a broader security review, suggest `/security`.
+Close by asking: "Anything else on WAF, or done?" If the user wants a broader security review, suggest `/review-security`.
 
 ## Progress tracking table
 

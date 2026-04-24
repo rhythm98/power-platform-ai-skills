@@ -1,6 +1,6 @@
 # Security headers — reference
 
-Single consolidated reference for the `security-headers` skill: the header catalogue the Power Pages runtime recognizes, product-specific quirks, command specs for the two bundled scripts, and external-doc pointers.
+Single consolidated reference for the `manage-security-headers` skill: the header catalogue the Power Pages runtime recognizes, product-specific quirks, command specs for the two bundled scripts, and external-doc pointers.
 
 ## Contents
 
@@ -164,7 +164,7 @@ Header changes land in Dataverse via `/deploy-site`. The site-setting update tri
 **Audit current site-settings**
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/security-headers/scripts/security-headers.js" \
+node "${CLAUDE_PLUGIN_ROOT}/skills/manage-security-headers/scripts/security-headers.js" \
   --audit \
   --projectRoot "<project-root>"
 ```
@@ -174,7 +174,7 @@ Read-only. Returns JSON: `{ present: [...], missing: [...], forbidden: [...] }`.
 **Write or update a setting**
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/security-headers/scripts/security-headers.js" \
+node "${CLAUDE_PLUGIN_ROOT}/skills/manage-security-headers/scripts/security-headers.js" \
   --write \
   --projectRoot "<project-root>" \
   --name "HTTP/<Header-Name>" \
@@ -188,7 +188,7 @@ Write. Preserves the existing YAML id when updating. Rejects Power Pages-managed
 **Remove a setting**
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/security-headers/scripts/security-headers.js" \
+node "${CLAUDE_PLUGIN_ROOT}/skills/manage-security-headers/scripts/security-headers.js" \
   --remove \
   --projectRoot "<project-root>" \
   --name "HTTP/<Header-Name>" \
@@ -212,7 +212,7 @@ Write (delete). Removing a setting that does not exist is a no-op (exit 0 with `
 Scan the project for external URLs referenced in HTML, CSS, and JavaScript. Produces a structured allowlist keyed by CSP directive plus the cloud-agnostic Power-Pages-runtime dependencies. The cloud-specific `content.powerapps.*` host is intentionally omitted — compose it separately after detecting the site's cloud via `pac auth who` (see [Power-Pages-runtime sources a CSP must allow](#power-pages-runtime-sources-a-csp-must-allow)).
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/security-headers/scripts/scan-external-urls.js" \
+node "${CLAUDE_PLUGIN_ROOT}/skills/manage-security-headers/scripts/scan-external-urls.js" \
   --projectRoot "<project-root>" \
   [--exclude "<comma-separated directory names>"]
 ```

@@ -1,5 +1,5 @@
 ---
-name: security
+name: review-security
 description: >-
   Orchestrates an end-to-end security review of a Power Pages site.
   Asks which framework to assess against (OWASP Top 10, CWE / CWE
@@ -9,10 +9,10 @@ description: >-
   pre-selected); runs the posture snapshot plus selected scans;
   presents findings in a unified HTML report grouped by the
   framework; applies remediations per-change, delegating to the
-  skill that owns each concern (site-visibility,
-  web-application-firewall, security-headers, security-scan,
-  code-analysis, setup-auth, create-webroles, audit-permissions,
-  deploy-site). Use when the user asks for a security review,
+  skill that owns each concern (manage-site-visibility,
+  manage-web-application-firewall, manage-security-headers,
+  manage-security-scan, analyze-code, setup-auth, create-webroles,
+  audit-permissions, deploy-site). Use when the user asks for a security review,
   audit, posture check, OWASP assessment, or hardening sweep —
   even if they do not name a framework. Out of scope: single-check
   invocations (invoke that skill directly), IaC scanning (Power
@@ -38,12 +38,12 @@ Every change is one delegated invocation behind explicit user approval — no ba
 
 ## Gotchas
 
-- **Framework-driven, not tool-driven.** OWASP is a framework. `security-scan` (ZAP-based dynamic scan) is a tool that covers *a subset* of OWASP. Running ZAP alone is not an OWASP review. Known ZAP gaps include design-time intent (table-permission misuse) and network-level checks — cover those via `/audit-permissions` and the posture snapshot.
+- **Framework-driven, not tool-driven.** OWASP is a framework. `manage-security-scan` (ZAP-based dynamic scan) is a tool that covers *a subset* of OWASP. Running ZAP alone is not an OWASP review. Known ZAP gaps include design-time intent (table-permission misuse) and network-level checks — cover those via `/audit-permissions` and the posture snapshot.
 - **Delegate table-permission audits; do not reimplement them.** `/audit-permissions` already produces an HTML report at `docs/permissions-audit.html` with severity-grouped findings and delegates fixes to the `table-permissions-architect` agent. This skill INCLUDES those findings in the unified report and keeps a link back to the existing `permissions-audit.html` for deep-dive evidence. Do NOT parse permission YAML or re-query Dataverse from here.
 - **Auth / role remediations go through their own skills.** When the review surfaces an auth issue, the fix invokes `/setup-auth`. Role-based access fixes invoke `/create-webroles`. These skills have their own approval flows — do not bypass them with direct Dataverse writes.
-- **Long-running security checks do NOT block.** `/security-scan --deep` and `/code-analysis` SAST scans run in the background. Kick them off in Phase 3 as soon as the user has picked them in Phase 2, and let them run while the rest of the review proceeds. The HTML report shows partial results immediately; deeper findings append when the scans complete.
+- **Long-running security checks do NOT block.** `/manage-security-scan --deep` and `/analyze-code` SAST scans run in the background. Kick them off in Phase 3 as soon as the user has picked them in Phase 2, and let them run while the rest of the review proceeds. The HTML report shows partial results immediately; deeper findings append when the scans complete.
 - **Skip-all must be explicit and documented.** If the user unchecks every long-running scan in Phase 2, surface the concrete trade-off (the review will miss dynamic vulnerability findings, SAST dataflow findings, and dependency CVEs depending on which were unchecked — see Phase 2 for the exact disclosure text). Accept the skip if the user confirms, and note it in the report's "Framework used" header so the gap is visible to later readers.
-- **Cross-cloud runtime sources.** When proposing CSP remediations in Phase 6, remember `/security-headers` needs the cloud-specific `content.powerapps.*` host — never propose a remediation that lists all four clouds' hosts together. Delegate to `/security-headers` which handles this.
+- **Cross-cloud runtime sources.** When proposing CSP remediations in Phase 6, remember `/manage-security-headers` needs the cloud-specific `content.powerapps.*` host — never propose a remediation that lists all four clouds' hosts together. Delegate to `/manage-security-headers` which handles this.
 - **Per-change approval is mandatory.** Phase 6 pauses with `AskUserQuestion` before every remediation. The user can accept, skip, or defer each finding individually — never batch-approve.
 
 ## Workflow
@@ -89,7 +89,7 @@ Label the skip-all path **"Bypass long-running scans (not recommended)"** in the
 > **Bypassing long-running scans is not recommended.** With no long-running scans, the review will still perform these fast checks from the posture snapshot:
 > - Site visibility (Public / Private)
 > - Web Application Firewall status + custom rule audit
-> - HTTP security-header configuration (CSP, CORS, SameSite, X-Frame-Options) via `security-headers --audit`
+> - HTTP security-header configuration (CSP, CORS, SameSite, X-Frame-Options) via `/manage-security-headers --audit`
 > - Table permissions (via `/audit-permissions`)
 > - Project language detection
 >
@@ -109,7 +109,7 @@ Record the framework and the scan set — Phase 3 kicks off the selected scans i
 Run the posture snapshot — a bundled script that issues the read commands from every security area in parallel:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/security/scripts/posture-snapshot.js" \
+node "${CLAUDE_PLUGIN_ROOT}/skills/review-security/scripts/posture-snapshot.js" \
   --portalId <guid> \
   --projectRoot "<project-root>"
 ```
@@ -130,13 +130,13 @@ This produces `docs/permissions-audit.html`. Wait for that skill to complete bef
 
 **Kick off every long-running scan the user picked in Phase 2, in the background, before proceeding to Phase 4.** Do NOT run any scan the user unchecked. The selected scans typically map to:
 
-- ZAP deep dynamic scan → `node "${CLAUDE_PLUGIN_ROOT}/skills/security-scan/scripts/scan.js" --deep --portalId <guid>` (returns immediately; runs server-side)
+- ZAP deep dynamic scan → `node "${CLAUDE_PLUGIN_ROOT}/skills/manage-security-scan/scripts/scan.js" --deep --portalId <guid>` (returns immediately; runs server-side)
 - Semgrep SAST → `semgrep scan --config <ruleset> --sarif --output <sarif-path> <project-root>` via `Bash run_in_background: true`
-- CodeQL SAST → `node "${CLAUDE_PLUGIN_ROOT}/skills/code-analysis/scripts/run-codeql.js" --projectRoot <path> --language javascript-typescript --querySuite <suite> --sarifOut <sarif-path>` via `Bash run_in_background: true`
+- CodeQL SAST → `node "${CLAUDE_PLUGIN_ROOT}/skills/analyze-code/scripts/run-codeql.js" --projectRoot <path> --language javascript-typescript --querySuite <suite> --sarifOut <sarif-path>` via `Bash run_in_background: true`
 - Trivy SCA → `trivy fs --scanners vuln --format sarif --output <sarif-path> <project-root>` (usually sub-minute; can run synchronously)
 - Trivy dependency license audit → `trivy fs --scanners license --format json --output <license-path> <project-root>` (sub-minute; synchronous). If both SCA and license are in scope, combine into a single `--scanners vuln,license --format json` run and parse both outputs from one file.
 
-Ruleset / query-suite defaults follow the framework — see `skills/code-analysis/SKILL.md` Phase 4 (ruleset table) for the exact mapping. The scan completion hook at `plugins/power-pages/hooks/hooks.json` will surface results when the long-running scans finish; pick them up and fold into the report during Phase 5 or Phase 7.
+Ruleset / query-suite defaults follow the framework — see `skills/analyze-code/SKILL.md` Phase 4 (ruleset table) for the exact mapping. The scan completion hook at `plugins/power-pages/hooks/hooks.json` will surface results when the long-running scans finish; pick them up and fold into the report during Phase 5 or Phase 7.
 
 ### Phase 4 — Audit and analyze
 
@@ -157,7 +157,7 @@ If the argument-hint captured a focused scope (e.g., "only CSP and WAF"), drop a
 Build a findings JSON that matches the schema in `references/orchestration.md`. **For OWASP Top 10 reviews**, before invoking the renderer, merge `permissionsAudit.findings[]` into `categories[id=A01].findings` so audit-permissions findings render inline with every other A01 finding. For every other framework (CWE, ASVS, SCA, license, bring-your-own), leave them in `permissionsAudit.findings[]` so the standalone Table Permissions section renders. Then render:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/security/scripts/render-report.js" \
+node "${CLAUDE_PLUGIN_ROOT}/skills/review-security/scripts/render-report.js" \
   --findings <findings.json> \
   --output docs/security-review.html
 ```
@@ -184,11 +184,11 @@ Delegation map (full version in `references/orchestration.md`):
 | Authentication / identity provider / anti-forgery token | `/setup-auth` | Configures identity providers, login/logout, token handling |
 | Web-role / role-based access | `/create-webroles` | Defines and assigns web roles |
 | Table permissions | `/audit-permissions` | Runs `table-permissions-architect` agent for fixes |
-| CSP / CORS / SameSite / other HTTP headers | `/security-headers` | Writes `HTTP/<Header>` site-setting YAML |
-| WAF enable/disable/rules | `/web-application-firewall` | Admin-layer WAF changes |
-| Visibility (Public/Private) | `/site-visibility` | Admin-layer visibility flip |
-| Dynamic scan (verification after hardening) | `/security-scan` | Quick sync scan or deep async scan |
-| Static-code finding (dependency CVE, SAST, dependency license) | `/code-analysis` | Framework-driven SAST / SCA / license audit |
+| CSP / CORS / SameSite / other HTTP headers | `/manage-security-headers` | Writes `HTTP/<Header>` site-setting YAML |
+| WAF enable/disable/rules | `/manage-web-application-firewall` | Admin-layer WAF changes |
+| Visibility (Public/Private) | `/manage-site-visibility` | Admin-layer visibility flip |
+| Dynamic scan (verification after hardening) | `/manage-security-scan` | Quick sync scan or deep async scan |
+| Static-code finding (dependency CVE, SAST, dependency license) | `/analyze-code` | Framework-driven SAST / SCA / license audit |
 | Deploy any Dataverse-bound change | `/deploy-site` | Push the YAML / site-setting changes |
 
 After each successful remediation, update the `status` field in the findings JSON and re-render the HTML report so the "fixed" markers appear. Capture before / after state on anything that touched Dataverse — the report's `remediation` block shows both.
@@ -205,7 +205,7 @@ After each successful remediation, update the `status` field in the findings JSO
 
 > Reference: `${CLAUDE_PLUGIN_ROOT}/references/skill-tracking-reference.md`
 
-Follow the skill-tracking instructions in the reference to record this skill's usage. Use `--skillName "Security"`.
+Follow the skill-tracking instructions in the reference to record this skill's usage. Use `--skillName "ReviewSecurity"`.
 
 Close by asking: "Anything else on the security review, or done?"
 

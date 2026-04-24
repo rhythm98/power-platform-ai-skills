@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/code-analysis-scan-check.js\"",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/analyze-code-scan-check.js\"",
             "timeout": 5
           }
         ]

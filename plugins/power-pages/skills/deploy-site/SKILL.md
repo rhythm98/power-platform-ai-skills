@@ -20,7 +20,7 @@ Guide the user through deploying an existing Power Pages code site to a Power Pa
 - **Verify before acting**: Always confirm PAC CLI availability, authentication status, and the target environment before attempting any deployment.
 - **Use TaskCreate/TaskUpdate**: Track all progress throughout all phases — create the todo list upfront with all phases before starting any work.
 - **Never change environment settings without consent**: If deployment requires modifying environment configuration (e.g., unblocking JavaScript attachments), always explain the change and get explicit user permission first.
-- **Recommend a security review before the first upload (and after meaningful code or config changes)**: once PAC CLI and authentication are verified, briefly suggest the user run `/security` before Phase 4 uploads — especially when the site has not been reviewed recently, when dependencies have changed (`package.json` / lock files), or when the change set touches auth, web roles, table permissions, CSP, or WAF. Accept "skip this time" without pushing back; this is a recommendation, not a gate.
+- **Recommend a security review before the first upload (and after meaningful code or config changes)**: once PAC CLI and authentication are verified, briefly suggest the user run `/review-security` before Phase 4 uploads — especially when the site has not been reviewed recently, when dependencies have changed (`package.json` / lock files), or when the change set touches auth, web roles, table permissions, CSP, or WAF. Accept "skip this time" without pushing back; this is a recommendation, not a gate.
 
 **Initial request:** $ARGUMENTS
 

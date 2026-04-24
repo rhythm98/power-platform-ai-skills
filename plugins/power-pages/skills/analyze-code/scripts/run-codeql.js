@@ -32,7 +32,7 @@ const EXIT = Object.freeze({
   CODEQL_FAILED: 4,   // codeql ran but returned non-zero
 });
 
-// The code-analysis skill scopes to JavaScript/TypeScript only — the typical
+// The analyze-code skill scopes to JavaScript/TypeScript only — the typical
 // Power Pages code-site surface. CodeQL's CLI accepts other language ids
 // (python, java, csharp, cpp, go, ruby, swift), but this wrapper does not
 // orchestrate them. Callers who need other languages should invoke

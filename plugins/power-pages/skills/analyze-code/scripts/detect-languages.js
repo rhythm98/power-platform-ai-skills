@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 // detect-languages.js — walk a project directory and report which
-// CodeQL-supported languages are present. Used by the code-analysis
+// CodeQL-supported languages are present. Used by the analyze-code
 // skill to pick the right language for `run-codeql.js`.
 //
 // Detection is extension-based — a file's extension determines its

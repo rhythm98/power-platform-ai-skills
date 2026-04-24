@@ -1,4 +1,4 @@
-# Code-analysis frameworks and tools
+# Analyze-code frameworks and tools
 
 Single consolidated reference — the security frameworks this skill supports, which tool to use for each, install pointers, and command specs for the bundled scripts.
 
@@ -22,7 +22,7 @@ Phase 2 of the skill asks the user which framework to assess against. Phase 3 th
 | Framework | Primary tool | Alternatives | Why this pairing |
 |---|---|---|---|
 | **CWE / CWE Top 25** (SAST) | Semgrep | CodeQL | Semgrep has a dedicated CWE Top 25 ruleset (`p/cwe-top-25`) and tags findings with CWE IDs directly. CodeQL covers CWE via its rule metadata; use it when deep dataflow analysis is worth the longer scan time. |
-| **OWASP Top 10** (SAST aspect) | Semgrep | CodeQL | Semgrep has an OWASP Top 10 ruleset (`p/owasp-top-ten`) with direct OWASP category tags (`owasp:A01:2021`). CodeQL tags CWE but not OWASP directly. For the DAST aspect of OWASP Top 10, use `/security-scan`. |
+| **OWASP Top 10** (SAST aspect) | Semgrep | CodeQL | Semgrep has an OWASP Top 10 ruleset (`p/owasp-top-ten`) with direct OWASP category tags (`owasp:A01:2021`). CodeQL tags CWE but not OWASP directly. For the DAST aspect of OWASP Top 10, use `/manage-security-scan`. |
 | **OWASP ASVS** | Semgrep | — | Semgrep ships an ASVS ruleset (`p/owasp-asvs`) that tags findings against ASVS control sections. No other OSS SAST CLI has a dedicated ASVS ruleset. |
 | **CVE / dependency vulnerabilities** | Trivy | Grype+Syft, OSV-Scanner, OWASP Dependency-Check | Trivy is the de facto standard — single binary, scans filesystem / repo for dependency vulnerabilities, tags by CVE + severity + package. It also flags packages whose upstream has reached end-of-life alongside the CVEs, which catches forward-looking risk even when no CVE is currently filed. The alternatives cover the same ground; pick based on user preference or existing CI. |
 | **Dependency license audit** | Trivy | ScanCode, Syft (SPDX-license output) | Trivy classifies every declared dependency license into `restricted` (copyleft — GPL / AGPL / LGPL), `reciprocal` (weak copyleft — Mozilla-class), `permissive` (MIT / Apache / BSD / ISC), or `unknown`. For non-open-source / commercial sites, the first two groups plus every `unknown` entry need explicit user confirmation that the distribution model permits them. Combine with CVE in one pass via `--scanners vuln,license`. |
@@ -131,7 +131,7 @@ If the user has a free-form checklist (e.g. a PDF or a wiki page), the skill can
 Detect which of the supported CLIs are on PATH.
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/code-analysis/scripts/check-tools.js" \
+node "${CLAUDE_PLUGIN_ROOT}/skills/analyze-code/scripts/check-tools.js" \
   [--tool <semgrep|codeql|trivy>]
 ```
 
@@ -144,7 +144,7 @@ node "${CLAUDE_PLUGIN_ROOT}/skills/code-analysis/scripts/check-tools.js" \
 Walk the project tree and report which languages are present (used to pick a CodeQL language and to warn about multi-language projects).
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/code-analysis/scripts/detect-languages.js" \
+node "${CLAUDE_PLUGIN_ROOT}/skills/analyze-code/scripts/detect-languages.js" \
   --projectRoot "<project-root>" \
   [--exclude <comma-separated directory names>]
 ```
@@ -166,7 +166,7 @@ node "${CLAUDE_PLUGIN_ROOT}/skills/code-analysis/scripts/detect-languages.js" \
 Orchestrate `codeql database create` + `codeql database analyze`. Designed to be invoked via `Bash run_in_background` — the scan is long-running.
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/code-analysis/scripts/run-codeql.js" \
+node "${CLAUDE_PLUGIN_ROOT}/skills/analyze-code/scripts/run-codeql.js" \
   --projectRoot "<project-root>" \
   --language <language-id> \
   --querySuite "<pack:suite.qls>" \
@@ -185,7 +185,7 @@ Semgrep and Trivy are invoked directly from the skill body (single-command tools
 Read a SARIF file from any tool and produce a structured summary keyed by `ruleId` with tags surfaced verbatim.
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/code-analysis/scripts/parse-sarif.js" \
+node "${CLAUDE_PLUGIN_ROOT}/skills/analyze-code/scripts/parse-sarif.js" \
   --sarif "<sarif-path>" \
   [--limit <N>]
 ```

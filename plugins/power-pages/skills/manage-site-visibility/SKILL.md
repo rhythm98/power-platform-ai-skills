@@ -1,5 +1,5 @@
 ---
-name: site-visibility
+name: manage-site-visibility
 description: >-
   Flips a Power Pages site between Public and Private. Use when the user
   mentions site visibility, making a site internal-only, publishing a
@@ -112,9 +112,9 @@ Summarize the before → after visibility for the user and remind them the site 
 
 > Reference: `${CLAUDE_PLUGIN_ROOT}/references/skill-tracking-reference.md`
 
-Follow the skill-tracking instructions in the reference to record this skill's usage. Use `--skillName "SiteVisibility"`.
+Follow the skill-tracking instructions in the reference to record this skill's usage. Use `--skillName "ManageSiteVisibility"`.
 
-Close by asking: "Anything else on site visibility, or done?" If the user wants to harden the site further, suggest `/security` for a posture review.
+Close by asking: "Anything else on site visibility, or done?" If the user wants to harden the site further, suggest `/review-security` for a posture review.
 
 ## Progress tracking table
 

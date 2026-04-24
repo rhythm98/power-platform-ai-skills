@@ -1,5 +1,5 @@
 ---
-name: security-scan
+name: manage-security-scan
 description: >-
   Runs the Power Pages security scan — triggers a quick synchronous
   diagnostic scan, starts the long-running OWASP-based deep scan against
@@ -70,7 +70,7 @@ At the start of Phase 1, create one task per phase with `TaskCreate`. Mark `in_p
 Before asking the user what they want, check whether a deep scan is currently running:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/security-scan/scripts/scan.js" --ongoing --portalId <guid>
+node "${CLAUDE_PLUGIN_ROOT}/skills/manage-security-scan/scripts/scan.js" --ongoing --portalId <guid>
 ```
 
 The command returns `true` (a scan is running) or `false` (idle). Knowing the state changes Phase 3's options:
@@ -131,11 +131,11 @@ The Phase 5 shape depends on which action ran in Phase 4:
 - Completion signal: email to the site admin + visible in the Power Pages Studio interface under Security → Run scan.
 - Polling command the user or meta-skill can run later to check:
   ```bash
-  node "${CLAUDE_PLUGIN_ROOT}/skills/security-scan/scripts/scan.js" --ongoing --portalId <guid>
+  node "${CLAUDE_PLUGIN_ROOT}/skills/manage-security-scan/scripts/scan.js" --ongoing --portalId <guid>
   ```
 - Fetch command once it completes:
   ```bash
-  node "${CLAUDE_PLUGIN_ROOT}/skills/security-scan/scripts/scan.js" --report --portalId <guid>
+  node "${CLAUDE_PLUGIN_ROOT}/skills/manage-security-scan/scripts/scan.js" --report --portalId <guid>
   ```
 
 After acknowledgment, Phase 5 is done — do NOT spin on `--ongoing` for the full scan duration; it is long enough to exhaust the session.
@@ -148,15 +148,15 @@ After acknowledgment, Phase 5 is done — do NOT spin on `--ongoing` for the ful
 
 Summarize what ran and what the user should do next:
 
-- For `--quick`: list the top 3–5 warnings/errors and suggest remediation paths (delegate to `/security` for a framework-driven review if the findings span multiple areas).
+- For `--quick`: list the top 3–5 warnings/errors and suggest remediation paths (delegate to `/review-security` for a framework-driven review if the findings span multiple areas).
 - For `--deep` start: remind the user of the email-on-completion signal and the polling commands.
 - For `--report` / `--score`: point out any deltas vs prior expectations.
 
 > Reference: `${CLAUDE_PLUGIN_ROOT}/references/skill-tracking-reference.md`
 
-Follow the skill-tracking instructions in the reference to record this skill's usage. Use `--skillName "SecurityScan"`.
+Follow the skill-tracking instructions in the reference to record this skill's usage. Use `--skillName "ManageSecurityScan"`.
 
-Close by asking: "Anything else on scanning, or done?" If the user wants a broader security review, suggest `/security`.
+Close by asking: "Anything else on scanning, or done?" If the user wants a broader security review, suggest `/review-security`.
 
 ## Progress tracking table
 
