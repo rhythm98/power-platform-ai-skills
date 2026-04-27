@@ -71,6 +71,14 @@ h3{font-size:15px;font-weight:700;color:var(--text-bright);margin-top:24px;margi
 .severity-medium{color:var(--medium);background:var(--medium-bg);border:1px solid var(--medium-border);}
 .severity-passing{color:var(--passing);background:var(--passing-bg);border:1px solid var(--passing-border);}
 
+/* Concern sections (one per concern the user picked in Phase 2) */
+.concern-block{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:18px;overflow:hidden;box-shadow:var(--shadow-4);}
+.concern-head{display:flex;align-items:center;gap:10px;padding:14px 20px;background:var(--accent-bg);border-bottom:1px solid var(--accent-border);}
+.concern-title{font-size:16px;font-weight:700;color:var(--text-bright);margin:0;letter-spacing:-0.2px;flex:1;}
+.concern-count{font-size:11px;font-family:var(--mono);color:var(--accent);background:var(--surface);padding:2px 8px;border-radius:10px;border:1px solid var(--accent-border);font-weight:600;}
+.concern-body{padding:18px 20px;}
+.concern-body .category-block:last-child{margin-bottom:0;}
+
 /* Finding cards */
 .category-block{margin-bottom:22px;}
 .category-head{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
@@ -170,7 +178,7 @@ h3{font-size:15px;font-weight:700;color:var(--text-bright);margin-top:24px;margi
       <!-- OVERVIEW -->
       <div class="section active" id="tab-overview">
         <h2>Security Review Overview</h2>
-        <p class="section-desc">Framework-driven review of the site's current security posture, aggregated from every security-related area — site visibility, web application firewall, HTTP headers, dynamic scan, code analysis — plus the existing table-permissions audit. Remediations route to the skill that owns each concern.</p>
+        <p class="section-desc">Concern-driven review of the site's current security posture, aggregated from every security-related area — site visibility, web application firewall, HTTP headers, dynamic scan, code analysis — plus the existing table-permissions audit. The Concerns metadata below lists everything the reviewer picked in Phase 2; the Findings tab shows one section per concern. Remediations route to the skill that owns each concern.</p>
 
         <div class="stats-grid">
           <div class="stat-card"><div class="stat-num" style="color:var(--critical)" id="statCritical">0</div><div class="stat-label">Critical</div></div>

@@ -78,34 +78,65 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
+// Return the concern-section array. The canonical shape is
+// `findings.concerns[]` — one entry per concern the user picked in Phase 2.
+// For backward compatibility, a flat `findings.categories[]` is accepted
+// and wrapped in a single unnamed concern so older callers keep working.
+function getConcerns(findings) {
+  if (Array.isArray(findings.concerns) && findings.concerns.length > 0) {
+    return findings.concerns;
+  }
+  if (Array.isArray(findings.categories) && findings.categories.length > 0) {
+    return [{ name: findings.metadata?.framework || '', categories: findings.categories }];
+  }
+  return [];
+}
+
 function renderSummary(findings) {
   const s = findings.summary || {};
-  const bc = s.byCategory || {};
-  const categoryRows = Object.entries(bc)
-    .map(([cat, count]) => `<li style="display:inline-block;padding:4px 10px;margin:2px 4px 2px 0;background:var(--surface2);border:1px solid var(--border);border-radius:12px;font-size:12px;"><strong style="font-family:var(--mono);color:var(--text-bright);">${escapeHtml(count)}</strong> <span style="color:var(--text-dim);">${escapeHtml(cat)}</span></li>`)
-    .join('');
   const total = s.totalFindings ?? 0;
-  const byCat = Object.keys(bc).length
-    ? `<div style="margin-top:10px;"><div class="field-label">By category</div><ul style="list-style:none;padding:0;margin:6px 0 0;">${categoryRows}</ul></div>`
-    : '';
+  // Per-concern subtotals are the primary summary axis now. Fall back to
+  // the older `byCategory` shape when the JSON was produced against the
+  // pre-multi-concern schema.
+  const byConcern = s.byConcern && typeof s.byConcern === 'object' ? s.byConcern : null;
+  let subtotalsHtml = '';
+  if (byConcern && Object.keys(byConcern).length > 0) {
+    const rows = Object.entries(byConcern)
+      .map(([concernName, counts]) => {
+        const c = counts || {};
+        const total = (c.critical || 0) + (c.high || 0) + (c.medium || 0) + (c.passing || 0);
+        return `<li style="display:inline-block;padding:4px 10px;margin:2px 4px 2px 0;background:var(--surface2);border:1px solid var(--border);border-radius:12px;font-size:12px;"><strong style="font-family:var(--mono);color:var(--text-bright);">${escapeHtml(total)}</strong> <span style="color:var(--text-dim);">${escapeHtml(concernName)}</span></li>`;
+      })
+      .join('');
+    subtotalsHtml = `<div style="margin-top:10px;"><div class="field-label">By concern</div><ul style="list-style:none;padding:0;margin:6px 0 0;">${rows}</ul></div>`;
+  } else {
+    const bc = s.byCategory || {};
+    if (Object.keys(bc).length > 0) {
+      const rows = Object.entries(bc)
+        .map(([cat, count]) => `<li style="display:inline-block;padding:4px 10px;margin:2px 4px 2px 0;background:var(--surface2);border:1px solid var(--border);border-radius:12px;font-size:12px;"><strong style="font-family:var(--mono);color:var(--text-bright);">${escapeHtml(count)}</strong> <span style="color:var(--text-dim);">${escapeHtml(cat)}</span></li>`)
+        .join('');
+      subtotalsHtml = `<div style="margin-top:10px;"><div class="field-label">By category</div><ul style="list-style:none;padding:0;margin:6px 0 0;">${rows}</ul></div>`;
+    }
+  }
   return `
     <div style="font-size:13px;line-height:1.75;">
       <div>Total findings: <strong style="color:var(--text-bright);">${escapeHtml(total)}</strong></div>
-      ${byCat}
+      ${subtotalsHtml}
     </div>
   `.trim();
 }
 
-// Count findings by severity across every category. Used to populate the
-// stat cards and nav badges in the template. Zero-fills every level so the
-// template's JS always has numeric values to render.
+// Count findings by severity across every concern's categories. Used to
+// populate the stat cards and nav badges in the template. Zero-fills
+// every level so the template's JS always has numeric values to render.
 function countBySeverity(findings) {
   const counts = { critical: 0, high: 0, medium: 0, passing: 0 };
-  const cats = findings.categories || [];
-  for (const cat of cats) {
-    for (const f of cat.findings || []) {
-      const sev = (f.severity || 'medium').toLowerCase();
-      if (counts[sev] !== undefined) counts[sev] += 1;
+  for (const concern of getConcerns(findings)) {
+    for (const cat of concern.categories || []) {
+      for (const f of cat.findings || []) {
+        const sev = (f.severity || 'medium').toLowerCase();
+        if (counts[sev] !== undefined) counts[sev] += 1;
+      }
     }
   }
   // If the findings JSON already carries pre-computed counts, prefer them
@@ -160,12 +191,11 @@ function renderFinding(f) {
   `.trim();
 }
 
-function renderCategories(findings) {
-  const cats = findings.categories || [];
-  if (cats.length === 0) return '<div class="empty-state">No findings recorded.</div>';
-  return cats.map((cat) => {
-    const items = (cat.findings || []);
-    return `
+// Render one category block (used inside a concern section). Pure markup
+// — the concern-level wrapper is in renderConcerns.
+function renderCategoryBlock(cat) {
+  const items = (cat.findings || []);
+  return `
     <div class="category-block">
       <div class="category-head">
         <h3>${escapeHtml(cat.name || cat.id || '(unnamed)')}</h3>
@@ -174,20 +204,56 @@ function renderCategories(findings) {
       ${items.length === 0 ? '<div class="empty-state" style="padding:20px;">No findings in this category.</div>' : items.map(renderFinding).join('\n')}
     </div>
   `.trim();
+}
+
+function renderConcerns(findings) {
+  const concerns = getConcerns(findings);
+  if (concerns.length === 0) return '<div class="empty-state">No findings recorded.</div>';
+  // When exactly one concern is selected, render its categories inline
+  // without an extra accordion level — a single-concern report reads more
+  // cleanly as a flat list of categories than as a one-entry accordion.
+  if (concerns.length === 1) {
+    const only = concerns[0];
+    const cats = only.categories || [];
+    if (cats.length === 0) return '<div class="empty-state">No findings recorded.</div>';
+    return cats.map(renderCategoryBlock).join('\n');
+  }
+  return concerns.map((concern) => {
+    const cats = concern.categories || [];
+    const findingCount = cats.reduce((sum, c) => sum + (c.findings?.length || 0), 0);
+    const body = cats.length === 0
+      ? '<div class="empty-state" style="padding:20px;">No findings in this concern.</div>'
+      : cats.map(renderCategoryBlock).join('\n');
+    return `
+    <div class="concern-block">
+      <div class="concern-head">
+        <h2 class="concern-title">${escapeHtml(concern.name || '(unnamed concern)')}</h2>
+        <span class="concern-count">${escapeHtml(findingCount)} finding${findingCount === 1 ? '' : 's'}</span>
+      </div>
+      <div class="concern-body">
+        ${body}
+      </div>
+    </div>
+  `.trim();
   }).join('\n');
 }
 
-// Detect whether the review is running under the OWASP Top 10 framework.
-// When true, audit-permissions findings fold into A01 upstream and this
-// function returns an empty-state card (the standalone Table Permissions
-// tab is superseded by the inline A01 rendering). For every other
-// framework (CWE, ASVS, SCA, license, bring-your-own) the standalone
-// section renders because audit-permissions findings do not map cleanly
-// into those frameworks' categories.
-function isOwaspFramework(findings) {
+// Detect whether "OWASP Top 10" is among the selected concerns. When
+// true, audit-permissions findings are expected to have been folded into
+// the OWASP concern's A01 category upstream and the standalone Table
+// Permissions section collapses to a deep-link. When OWASP Top 10 is not
+// in the concern list, the standalone section renders with the 4-stat
+// grid because permission findings do not map cleanly into other
+// concerns' groupings.
+function hasOwaspConcern(findings) {
+  const concerns = findings.metadata?.concerns;
+  if (Array.isArray(concerns)) {
+    return concerns.some((c) => typeof c === 'string' && /owasp\s*top\s*10/i.test(c));
+  }
+  // Backward-compat: older JSON uses `metadata.framework` (single string).
   const fw = findings.metadata?.framework;
-  if (!fw || typeof fw !== 'string') return false;
-  return /owasp\s*top\s*10/i.test(fw);
+  if (typeof fw === 'string') return /owasp\s*top\s*10/i.test(fw);
+  return false;
 }
 
 function renderPermissionsAudit(findings) {
@@ -195,10 +261,10 @@ function renderPermissionsAudit(findings) {
   if (!pa) {
     return '<div class="empty-state">The table-permissions audit was not included in this review.</div>';
   }
-  // OWASP Top 10: the meta-skill merges pa.findings[] into categories[id=A01]
-  // upstream, so the standalone Table Permissions section is redundant.
-  // Point the reader at A01 and the full-evidence deep-link.
-  if (isOwaspFramework(findings)) {
+  // When "OWASP Top 10" is among the selected concerns, the meta-skill
+  // has already merged pa.findings[] into that concern's A01 category,
+  // so the standalone Table Permissions section collapses to a link.
+  if (hasOwaspConcern(findings)) {
     const reportPath = pa.reportPath || 'docs/permissions-audit.html';
     return `
       <div class="permissions-link">
@@ -224,7 +290,7 @@ function renderPermissionsAudit(findings) {
   return `
     <div class="permissions-link">
       Full evidence: <a href="${escapeHtml(reportPath)}"><code>${escapeHtml(reportPath)}</code></a>.
-      Audit-permissions findings do not map cleanly into this framework's categories,
+      Audit-permissions findings do not map cleanly into the selected concerns' groupings,
       so they render here under the unified Critical / High / Medium / Passing scheme;
       fixes still route to the <code>table-permissions-architect</code> agent via <code>/audit-permissions</code>.
     </div>
@@ -262,9 +328,30 @@ function renderMetadata(findings) {
   const skipped = Array.isArray(m.scansSkipped) && m.scansSkipped.length
     ? m.scansSkipped.join(', ')
     : '(none)';
+  // Prefer the multi-concern `concerns[]` list; fall back to the legacy
+  // single-string `framework` field so older JSON still renders usable
+  // metadata.
+  let concernsLabel;
+  if (Array.isArray(m.concerns) && m.concerns.length > 0) {
+    concernsLabel = m.concerns.join(', ');
+  } else if (typeof m.framework === 'string' && m.framework.length > 0) {
+    concernsLabel = m.framework;
+  } else {
+    concernsLabel = '(not recorded)';
+  }
+  // `deepScan` is a boolean Phase 2 sets when the user opts into the ZAP
+  // deep dynamic scan. Surface it so the report explicitly shows the
+  // thoroughness knob the user chose — "included" vs "skipped" is more
+  // scannable than reading it off the scansIncluded list.
+  const deepScanLabel = m.deepScan === true
+    ? 'Included'
+    : m.deepScan === false
+    ? 'Skipped'
+    : '(not recorded)';
   return `
     <dl class="metadata-dl">
-      <dt>Framework</dt><dd>${escapeHtml(m.framework || '(not recorded)')}</dd>
+      <dt>Concerns</dt><dd>${escapeHtml(concernsLabel)}</dd>
+      <dt>Deep dynamic scan</dt><dd>${escapeHtml(deepScanLabel)}</dd>
       <dt>Site</dt><dd>${escapeHtml(m.siteName || '(unknown)')}</dd>
       <dt>Portal id</dt><dd><code>${escapeHtml(m.portalId || '(unknown)')}</code></dd>
       <dt>Generated</dt><dd>${escapeHtml(m.generatedAt || new Date().toISOString())}</dd>
@@ -311,7 +398,7 @@ function render({ findingsPath, outputPath, dryRun = false } = {}) {
     __METADATA__: renderMetadata(findings),
     __SUMMARY__: renderSummary(findings),
     __PENDING_SCANS__: renderPendingScans(findings),
-    __CATEGORIES__: renderCategories(findings),
+    __CATEGORIES__: renderConcerns(findings),
     __PERMISSIONS_AUDIT__: renderPermissionsAudit(findings),
     // Severity counts and pending count are injected as JSON literals so the
     // template's small amount of JS can render stat cards and nav badges
@@ -382,14 +469,16 @@ module.exports = {
   render,
   escapeHtml,
   renderSummary,
-  renderCategories,
+  renderConcerns,
+  renderCategoryBlock,
   renderFinding,
   renderPermissionsAudit,
   renderPendingScans,
   renderMetadata,
   countBySeverity,
   siteNameFromFindings,
-  isOwaspFramework,
+  hasOwaspConcern,
+  getConcerns,
   TEMPLATE_PATH,
   EXIT,
 };
