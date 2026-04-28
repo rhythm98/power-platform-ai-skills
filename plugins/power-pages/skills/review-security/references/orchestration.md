@@ -55,10 +55,10 @@ Each OWASP category can draw signals from multiple security areas. This table is
 
 | Category | Description | Signals from |
 |---|---|---|
-| **A01 Broken Access Control** | Resources / functions reachable without the right checks | `/manage-site-visibility` (public site with no gating); `/audit-permissions` (overly-broad table-permission scope); posture-snapshot's `webRoles` read (Public site with admin-looking pages but unbound web roles — routed to `/create-webroles` for the fix); `/manage-security-headers` (CORS that bypasses same-origin); `/analyze-code` (CWE-22 path traversal, CWE-284/285 improper authz) |
+| **A01 Broken Access Control** | Resources / functions reachable without the right checks | `/audit-permissions` (overly-broad table-permission scope); posture-snapshot's `webRoles` read (admin-looking pages with unbound web roles — routed to `/create-webroles` for the fix); `/manage-security-headers` (CORS that bypasses same-origin); `/analyze-code` (CWE-22 path traversal, CWE-284/285 improper authz) |
 | **A02 Cryptographic Failures** | Data-in-transit or data-at-rest protections bypassed or misconfigured | `/manage-security-headers` (HSTS is Power-Pages-managed — flag only if TLS is being disabled elsewhere); `/manage-security-scan` deep scan (TLS misconfig, weak crypto detection) |
 | **A03 Injection** | SQLi, XSS, command injection, expression-language injection, etc. | `/manage-security-scan` deep scan (dynamic reflection / confirmed injections); `/analyze-code` with Semgrep or CodeQL (static dataflow findings tagged CWE-79, CWE-89, CWE-78, CWE-917, etc.) |
-| **A04 Insecure Design** | Design-level weaknesses beyond mis-configuration | `/manage-security-headers` (CORS `*` + credentials, overly-permissive CSP that defeats same-origin intent); `/manage-site-visibility` (Private site without Entra-auth-required access list); `/audit-permissions` (design gaps the `table-permissions-architect` agent identifies) |
+| **A04 Insecure Design** | Design-level weaknesses beyond mis-configuration | `/manage-security-headers` (CORS `*` + credentials, overly-permissive CSP that defeats same-origin intent); `/audit-permissions` (design gaps the `table-permissions-architect` agent identifies) |
 | **A05 Security Misconfiguration** | Missing hardening on well-known controls | `/manage-security-headers` (missing `HTTP/Content-Security-Policy`, missing `HTTP/X-Frame-Options`, `--audit` reporting catalogued names under `missing`); `/manage-web-application-firewall` (WAF disabled on a production site); `/manage-security-scan` quick scan (Pass/Warning items for common misconfig patterns) |
 | **A06 Vulnerable and Outdated Components** | Known CVEs in third-party dependencies, plus packages whose upstream is end-of-life / deprecated (forward-looking risk even without a filed CVE) | `/analyze-code` in CVE / SCA mode (Trivy); Trivy's EOL signal feeds this category too |
 | **A07 Identification and Authentication Failures** | Missing or weak auth, session handling, credential protection | `/setup-auth` (login/logout, identity providers, anti-forgery tokens); `/analyze-code` (CWE-287, CWE-306, CWE-798 hardcoded credentials) |
@@ -74,7 +74,6 @@ Every finding type and which skill owns both the analysis AND the remediation. T
 
 | Finding area | Read / analyze via | Remediate via | Notes |
 |---|---|---|---|
-| Site visibility (Public / Private) | `/manage-site-visibility` (Phase 2 read) | `/manage-site-visibility` | Public → Private and back only; admin-delegation group is separate admin tooling |
 | HTTP security headers (CSP, CORS, SameSite, X-Frame-Options, etc.) | `/manage-security-headers --audit` | `/manage-security-headers --write` | CSP changes use plan-validate-execute; cloud-specific runtime host required |
 | WAF enable / disable | `/manage-web-application-firewall --status` | `/manage-web-application-firewall --enable` or `--disable` | Async; poll status after kicking off |
 | WAF rules (custom + managed-rule overrides) | `/manage-web-application-firewall --rules` | `/manage-web-application-firewall --create-rules` or `--delete-custom` | Plan file required; first-match-wins semantics matter |
@@ -84,7 +83,7 @@ Every finding type and which skill owns both the analysis AND the remediation. T
 | Table permissions | `/audit-permissions` | `/audit-permissions` (which invokes the `table-permissions-architect` agent for fixes) | The `table-permissions-architect` agent is preserved as the fix path; this skill never bypasses it |
 | Web roles | `/create-webroles` | `/create-webroles` | Creates role records + UI gating rules |
 | Authentication / identity providers / anti-forgery | `/setup-auth` | `/setup-auth` | Configures OAuth / OIDC providers, login/logout, token handling |
-| Deploy any Dataverse-bound change | — | `/deploy-site` | Site-settings YAML needs `/deploy-site` to reach Dataverse; visibility and WAF are admin-layer so they skip this |
+| Deploy any Dataverse-bound change | — | `/deploy-site` | Site-settings YAML needs `/deploy-site` to reach Dataverse; WAF is admin-layer so it skips this |
 
 ## Severity scheme
 
@@ -214,7 +213,7 @@ Per the plugin's established pattern, the meta-skill must integrate with — not
 
 | Field | Source command | Purpose |
 |---|---|---|
-| `website` | `scripts/lib/website.js --websiteRecordId <id>` | Site name, portal id, `SiteVisibility`, cloud, etc. |
+| `website` | `scripts/lib/website.js --websiteRecordId <id>` | Site name, portal id, cloud, etc. |
 | `waf.status` | `skills/manage-web-application-firewall/scripts/waf.js --status` | WAF enabled / disabled, region availability, log capture |
 | `waf.rules` | `skills/manage-web-application-firewall/scripts/waf.js --rules` | Current custom + managed-rule overrides |
 | `scan.ongoing` | `skills/manage-security-scan/scripts/scan.js --ongoing` | Whether a deep scan is currently running |
@@ -222,7 +221,7 @@ Per the plugin's established pattern, the meta-skill must integrate with — not
 | `scan.score` | `skills/manage-security-scan/scripts/scan.js --score` | `{ totalRules, succeededRules }` from the latest completed scan |
 | `headers.audit` | `skills/manage-security-headers/scripts/security-headers.js --audit --projectRoot <root>` | Present / missing / forbidden HTTP/* site-settings |
 | `languages` | `skills/analyze-code/scripts/detect-languages.js --projectRoot <root>` | Which CodeQL-supported languages are in the project |
-| `webRoles` | Inline file read of `<projectRoot>/.powerpages-site/web-roles/*.webrole.yml` via the plugin-shared `powerpages-config` loader (no child process, no network) | `{ present, count, roles[] }` or `{ error }`. On a Public site with admin-looking pages but unbound web roles, Phase 4 raises A01 (Medium) with a recommendation to bind the role via `/create-webroles`. |
+| `webRoles` | Inline file read of `<projectRoot>/.powerpages-site/web-roles/*.webrole.yml` via the plugin-shared `powerpages-config` loader (no child process, no network) | `{ present, count, roles[] }` or `{ error }`. When admin-looking pages have unbound web roles, Phase 4 raises A01 (Medium) with a recommendation to bind the role via `/create-webroles`. |
 
 The script fails open — if any individual read fails, its field is populated as `{ "error": "<message>" }` and the others still proceed. The meta-skill surfaces any failed reads in the report so the user sees what information is missing.
 

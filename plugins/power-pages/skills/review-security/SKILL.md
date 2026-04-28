@@ -11,7 +11,7 @@ description: >-
   the selected concerns, produces a unified HTML report with one
   section per concern, and applies remediations per-change,
   delegating to the sibling skill that owns each concern
-  (visibility, WAF, headers, scan, code analysis, auth, web roles,
+  (WAF, headers, scan, code analysis, auth, web roles,
   table permissions, deploy). Use when the user asks for a
   security review, audit, posture check, OWASP / CWE / CVE / ASVS
   assessment, license check, or hardening sweep — even without
@@ -97,7 +97,6 @@ Do NOT add a "None of the above" option to Question 2 — submitting with zero t
 **Bypass-all confirmation.** If Question 1 was "Skip the site-code scan" AND Question 2 had zero ticks, confirm explicitly before proceeding — the phrase "not recommended" MUST appear in this confirmation so the user sees the posture trade-off:
 
 > **Skipping every automated check is not recommended.** The review will still perform these fast posture checks:
-> - Site visibility (Public / Private)
 > - Web Application Firewall status + custom rule audit
 > - HTTP security-header configuration (CSP, CORS, SameSite, X-Frame-Options) via `/manage-security-headers --audit`
 > - Table permissions (via `/audit-permissions`)
@@ -132,12 +131,12 @@ node "${CLAUDE_PLUGIN_ROOT}/skills/review-security/scripts/posture-snapshot.js" 
 ```
 
 The output is a single JSON blob with:
-- Visibility state + admin-delegation group id (from `website.js`)
+- Site name + admin-delegation group id (from `website.js`)
 - WAF status + current rules (from `waf.js --status` / `--rules`)
 - Deep-scan state + latest report summary + score (from `scan.js --ongoing` / `--report` / `--score`)
 - HTTP/* site-settings audit (from `security-headers.js --audit`)
 - Detected project languages (from `detect-languages.js`)
-- Local web-role definitions from `.powerpages-site/web-roles/*.webrole.yml` (read inline by the snapshot script). Shape: `{ present, count, roles[] }` or `{ error }` when the directory / files can't be read. Phase 4 uses this to flag OWASP A01 when a Public site lists web roles that are never bound to administratively-sensitive pages.
+- Local web-role definitions from `.powerpages-site/web-roles/*.webrole.yml` (read inline by the snapshot script). Shape: `{ present, count, roles[] }` or `{ error }` when the directory / files can't be read. Phase 4 uses this to flag OWASP A01 when the site lists web roles that are never bound to administratively-sensitive pages.
 
 Also invoke the existing table-permissions flow in parallel:
 ```
@@ -160,7 +159,7 @@ For each signal gathered in Phase 3, classify it as Critical / High / Medium or 
 
 Grouping convention per concern (authoritative table in `references/orchestration.md` → "Concern → report grouping"):
 
-- **Common web attacks view (OWASP Top 10)** — group findings into A01–A10 via the category → area mapping in `references/orchestration.md`. For web-role signals: on a Public site, if pages look administratively sensitive (admin / settings / internal-sounding paths) but no web role binds to them, raise a **Medium** finding under A01 and route the fix to `/create-webroles`.
+- **Common web attacks view (OWASP Top 10)** — group findings into A01–A10 via the category → area mapping in `references/orchestration.md`. For web-role signals: if pages look administratively sensitive (admin / settings / internal-sounding paths) but no web role binds to them, raise a **Medium** finding under A01 and route the fix to `/create-webroles`.
 - **Detailed weakness view (CWE Top 25)** — group by the CWE id on the finding. Posture-snapshot signals (WAF disabled, missing CSP, etc.) do not have native CWE ids; place them under the best-fit CWE (e.g., missing CSP → CWE-1021, WAF disabled → CWE-693) and annotate the mapping in the evidence line so the user can see the reasoning.
 - **Compliance-standard view (OWASP ASVS)** — group by ASVS section (V1 Architecture, V2 Authentication, V3 Session, V4 Access Control, V5 Validation, …). Semgrep ASVS rules tag directly; posture signals need manual section assignment with evidence annotation.
 - **CVE / SCA** — group by package name, ordered by highest severity CVE per package. If Trivy was unavailable at run time, the CVE concern renders with an empty-state card explaining the tool was missing; do not silently drop it.
@@ -211,7 +210,6 @@ Delegation map (full version in `references/orchestration.md`):
 | Table permissions | `/audit-permissions` | Runs `table-permissions-architect` agent for fixes |
 | CSP / CORS / SameSite / other HTTP headers | `/manage-security-headers` | Writes `HTTP/<Header>` site-setting YAML |
 | WAF enable/disable/rules | `/manage-web-application-firewall` | Admin-layer WAF changes |
-| Visibility (Public/Private) | `/manage-site-visibility` | Admin-layer visibility flip |
 | Dynamic scan (verification after hardening) | `/manage-security-scan` | Quick sync scan or deep async scan |
 | Static-code finding (dependency CVE, SAST, dependency license) | `/analyze-code` | Framework-driven SAST / SCA / license audit |
 | Deploy any Dataverse-bound change | `/deploy-site` | Push the YAML / site-setting changes |

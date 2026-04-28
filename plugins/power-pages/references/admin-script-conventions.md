@@ -15,9 +15,8 @@ Shared conventions for the `scripts/lib/admin-api.js` transport layer and the pe
 
 ## Who uses these commands
 
-Three sub-skills of the `review-security` family depend on this command layer:
+Two sub-skills of the `review-security` family depend on this command layer:
 
-- `manage-site-visibility`
 - `manage-web-application-firewall`
 - `manage-security-scan`
 
@@ -83,12 +82,10 @@ Codes the commands may surface on stderr and the condition each represents. Only
 | `A019` | Portal belongs to a different tenant than the signed-in user | Ask the user to re-auth in the correct tenant. |
 | `A033` | Portal belongs to a different environment than the PAC default | Ask the user to switch PAC env, or pass `--environmentId` explicitly. |
 | `A037` | Caller is not authorized to perform this change on the site. | Ask a tenant admin to perform the change; do not retry. |
-| `A039` | Tenant governance policy blocks non-production sites from being made Public. Conditional — not an absolute rule. | If the user is a tenant admin they can adjust the governance policy from admin center; otherwise surface the message and stop. |
 | `B001` | The edge resource for this site is not provisioned | Not a self-service fix — escalate to support. |
 | `B003` | Another operation of the same family is already in progress | Poll the matching status command, wait, then retry. |
 | `B022` | WAF not available in this region | Regional gate — not a self-service fix. |
 | `B023` | WAF not available on trial portals | Convert the site to production licensing. |
-| `D005` | Operation not allowed on a developer portal | Promote the portal to production first; do not retry. |
 | `Z003` | A scan is already ongoing | Do NOT retry — poll the scan-ongoing check instead. |
 
 ## The site resolver command

@@ -71,7 +71,7 @@ Output (stdout): a JSON object with fields:
                   <projectRoot>/.powerpages-site/web-roles/*.webrole.yml,
                   shaped as { present, count, roles[] } or { error }.
                   Feeds the unified security report and Phase 4's
-                  Public-site web-role-binding check.
+                  web-role-binding check.
 
 Exit codes:
   0  Success — every read completed (some may contain { error } fields).
@@ -129,7 +129,7 @@ function runNodeScript(scriptPath, args) {
   });
 }
 
-function siteVisibilityPath() {
+function websiteResolverPath() {
   return path.join(PLUGIN_ROOT, 'scripts', 'lib', 'website.js');
 }
 
@@ -163,9 +163,9 @@ function languagesScriptPath() {
  *   { error: "..." } — any unexpected failure; stays consistent with the
  *                      fail-open pattern the other reads use
  *
- * Shape is intentionally minimal — the meta-skill cross-references with
- * `website.SiteVisibility` in Phase 4 and flags Public sites whose
- * administratively-sensitive pages have no web role bound to them.
+ * Shape is intentionally minimal — the meta-skill uses this in Phase 4
+ * to flag administratively-sensitive pages that have no web role bound
+ * to them.
  */
 function readLocalWebRoles(projectRoot) {
   try {
@@ -211,7 +211,7 @@ async function runSnapshot({ portalId, projectRoot } = {}) {
     // caller-provided portalId there and let them cross-reference; in
     // practice callers set --websiteRecordId before running this script
     // and the `website` field in the output is informational.
-    runNodeScript(siteVisibilityPath(), ['--websiteRecordId', portalId]),
+    runNodeScript(websiteResolverPath(), ['--websiteRecordId', portalId]),
     runNodeScript(wafScriptPath(), ['--status', '--portalId', portalId]),
     runNodeScript(wafScriptPath(), ['--rules', '--portalId', portalId]),
     runNodeScript(scanScriptPath(), ['--ongoing', '--portalId', portalId]),
