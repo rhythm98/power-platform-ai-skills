@@ -87,6 +87,11 @@ Exit codes:
      signal, not an error — the caller decides what to do).
   1  Unknown runtime failure.
   2  Invalid CLI arguments.
+
+Examples:
+  node check-tools.js
+  node check-tools.js --tool semgrep
+  node check-tools.js --tool codeql
 `;
 
 function exitWithMessage(exitCode, message) {

@@ -67,6 +67,10 @@ Exit codes:
   0  Success.
   1  Unknown / I/O failure.
   2  Invalid arguments, file not found, or malformed SARIF.
+
+Examples:
+  node parse-sarif.js --sarif ./.manage-code-scan-output.sarif
+  node parse-sarif.js --sarif ./scan.sarif --limit 25
 `;
 
 function exitWithMessage(exitCode, message) {
@@ -167,13 +171,20 @@ function parseSarif({ sarifPath, flatLimit = DEFAULT_FLAT_LIMIT } = {}) {
     byRuleDetail[f.ruleId].push(f);
   }
 
-  // Sort per-rule buckets by severity, then file.
-  for (const bucket of Object.values(byRuleDetail)) {
+  // Sort per-rule buckets by severity, then file, and cap each bucket to
+  // flatLimit so a high-volume scan can't blow the agent's stdout buffer.
+  // The summary.byRule count above remains accurate across all findings.
+  const byRuleTruncated = {};
+  for (const [ruleId, bucket] of Object.entries(byRuleDetail)) {
     bucket.sort((a, b) => {
       const sevDiff = (SEVERITY_ORDER[a.severity] ?? 99) - (SEVERITY_ORDER[b.severity] ?? 99);
       if (sevDiff !== 0) return sevDiff;
       return String(a.file || '').localeCompare(String(b.file || ''));
     });
+    if (bucket.length > flatLimit) {
+      byRuleTruncated[ruleId] = bucket.length - flatLimit;
+      byRuleDetail[ruleId] = bucket.slice(0, flatLimit);
+    }
   }
 
   // Flat list, sorted + truncated. Errors first, then warnings, then notes.
@@ -194,7 +205,9 @@ function parseSarif({ sarifPath, flatLimit = DEFAULT_FLAT_LIMIT } = {}) {
       byRule: byRuleCount,
     },
     byRule: byRuleDetail,
+    byRuleTruncated, // ruleId → count of additional findings not included in byRule[ruleId]
     findings: flat,
+    findingsTruncated: Math.max(0, findings.length - flat.length),
   };
 }
 

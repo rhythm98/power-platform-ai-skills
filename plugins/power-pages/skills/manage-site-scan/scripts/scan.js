@@ -126,6 +126,14 @@ Exit codes:
   6  Caller-config issue (A019 / A033). Portal id is not a GUID, or the
      caller's tenant does not match the portal's tenant. Distinct from
      exit 1 so callers can branch on caller-config vs transport failures.
+
+Examples:
+  node scan.js --quick   --portalId <portalId> --lcid 1033
+  node scan.js --deep    --portalId <portalId>
+  node scan.js --deep    --portalId <portalId> --dry-run
+  node scan.js --ongoing --portalId <portalId>
+  node scan.js --report  --portalId <portalId>
+  node scan.js --score   --portalId <portalId>
 `;
 
 function extractErrorCode(body) {

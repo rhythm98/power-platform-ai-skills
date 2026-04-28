@@ -92,6 +92,10 @@ Exit codes:
   0  Success.
   1  Unknown or I/O failure.
   2  Invalid or missing CLI arguments.
+
+Examples:
+  node detect-languages.js --projectRoot ./my-site
+  node detect-languages.js --projectRoot ./my-site --exclude vendor,legacy
 `;
 
 function exitWithMessage(exitCode, message) {

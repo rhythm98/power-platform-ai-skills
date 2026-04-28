@@ -110,9 +110,13 @@ function runNodeScript(scriptPath, args) {
     });
     child.on('close', (code) => {
       if (code !== 0) {
-        // Preserve the child's stderr so the caller can surface it. Trim
-        // to avoid flooding the consuming JSON with a huge trace.
-        const trimmed = (stderr || '').split(/\r?\n/).slice(0, 5).join('\n');
+        // Preserve the child's stderr so the caller can surface it. Cap at
+        // STDERR_TAIL_LINES so a verbose child trace cannot flood the
+        // aggregate JSON output (the agent's stdout buffer truncates at
+        // ~10–30K chars, and a single failing helper could otherwise
+        // dominate the snapshot).
+        const STDERR_TAIL_LINES = 5;
+        const trimmed = (stderr || '').split(/\r?\n/).slice(0, STDERR_TAIL_LINES).join('\n');
         resolve({ error: `exit ${code}: ${trimmed}` });
         return;
       }

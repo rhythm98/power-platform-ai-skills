@@ -43,7 +43,7 @@ const HELP = `Usage:
   run-codeql.js --projectRoot <path> --language <lang> \\
                 --querySuite <pack:suite.qls> \\
                 --dbPath <db-path> --sarifOut <sarif-path> \\
-                [--ram <MB>] [--pathsIgnore <comma-paths>]
+                [--ram <MB>] [--pathsIgnore <comma-paths>] [--dry-run]
   run-codeql.js --help
 
 Orchestrates 'codeql database create' followed by 'codeql database analyze'
@@ -64,6 +64,10 @@ Options:
                             projects. Applied to both create and analyze.
   --pathsIgnore <list>      Comma-separated paths (relative to projectRoot)
                             to exclude from analysis.
+  --dry-run                 Print the planned 'codeql database create' and
+                            'codeql database analyze' commands as JSON and
+                            exit 0 without writing the database, the SARIF,
+                            or any state markers.
   -h, --help                Show this help.
 
 Output (stdout, JSON, on success):
@@ -81,6 +85,17 @@ Exit codes:
   2  Invalid or missing CLI arguments.
   3  CodeQL CLI is not on PATH.
   4  CodeQL ran but failed. Stderr carries the CodeQL message.
+
+Examples:
+  node run-codeql.js \\
+    --projectRoot ./my-site --language javascript-typescript \\
+    --querySuite codeql/javascript-queries:codeql-suites/javascript-security-extended.qls \\
+    --dbPath ./my-site/.codeql-db --sarifOut ./my-site/scan.sarif
+
+  node run-codeql.js --dry-run \\
+    --projectRoot ./my-site --language javascript-typescript \\
+    --querySuite codeql/javascript-queries:codeql-suites/javascript-security-extended.qls \\
+    --dbPath ./my-site/.codeql-db --sarifOut ./my-site/scan.sarif
 `;
 
 function exitWithMessage(exitCode, message) {
@@ -153,6 +168,31 @@ function runStep(name, args, dbPath) {
   return elapsedSeconds;
 }
 
+function planCommands({ projectRoot, language, querySuite, dbPath, sarifOut, ram, pathsIgnore }) {
+  const createArgs = [
+    'database', 'create', dbPath,
+    `--language=${language}`,
+    `--source-root=${projectRoot}`,
+    '--overwrite', // re-runs overwrite a prior database at the same path
+  ];
+  if (ram) createArgs.push(`--ram=${ram}`);
+
+  const analyzeArgs = [
+    'database', 'analyze', dbPath,
+    querySuite,
+    '--format=sarif-latest',
+    `--output=${sarifOut}`,
+  ];
+  if (ram) analyzeArgs.push(`--ram=${ram}`);
+  // The codeql-config file would be written into dbPath at run time; in
+  // dry-run we surface the path the run would use without creating it.
+  const willWriteConfig = Array.isArray(pathsIgnore) && pathsIgnore.length > 0;
+  const configPath = willWriteConfig ? path.join(dbPath, 'codeql-config.yml') : null;
+  if (configPath) analyzeArgs.push(`--codescanning-config=${configPath}`);
+
+  return { createArgs, analyzeArgs, configPath };
+}
+
 function runScan({
   projectRoot,
   language,
@@ -161,6 +201,7 @@ function runScan({
   sarifOut,
   ram,
   pathsIgnore,
+  dryRun = false,
 } = {}) {
   if (!projectRoot || typeof projectRoot !== 'string') throw invalidArgs('--projectRoot is required');
   if (!language || typeof language !== 'string') throw invalidArgs('--language is required');
@@ -176,6 +217,25 @@ function runScan({
     throw invalidArgs(`--projectRoot does not exist or is not a directory: ${projectRoot}`);
   }
 
+  if (dryRun) {
+    // Surface the exact commands the agent would run, without touching the
+    // filesystem or invoking codeql. Useful for the agent to preview a
+    // long-running invocation before committing.
+    const { createArgs, analyzeArgs, configPath } = planCommands({
+      projectRoot, language, querySuite, dbPath, sarifOut, ram, pathsIgnore,
+    });
+    return {
+      status: 'dry-run',
+      dbPath,
+      sarifOut,
+      configPath,
+      commands: {
+        create: ['codeql', ...createArgs],
+        analyze: ['codeql', ...analyzeArgs],
+      },
+    };
+  }
+
   if (!codeqlAvailable()) {
     const err = new Error('codeql CLI not on PATH — run check-tools.js for install guidance');
     err.code = 'NOT_FOUND';
@@ -186,30 +246,21 @@ function runScan({
   // a rerun's fresh markers will write over it cleanly.
   for (const marker of ['create', 'analyze', 'done', 'error']) clearMarker(dbPath, marker);
 
-  const configPath = writeConfigFile(dbPath, pathsIgnore);
+  // Materialize the config file (writeConfigFile and planCommands derive
+  // the same path; planCommands only references it, writeConfigFile writes
+  // it). Then build both argv arrays from one source.
+  writeConfigFile(dbPath, pathsIgnore);
+  const { createArgs, analyzeArgs } = planCommands({
+    projectRoot, language, querySuite, dbPath, sarifOut, ram, pathsIgnore,
+  });
 
   // ---- database create ----
   writeMarker(dbPath, 'create', new Date().toISOString());
-  const createArgs = [
-    'database', 'create', dbPath,
-    `--language=${language}`,
-    `--source-root=${projectRoot}`,
-    '--overwrite', // re-runs overwrite a prior database at the same path
-  ];
-  if (ram) createArgs.push(`--ram=${ram}`);
   const createSeconds = runStep('database create', createArgs, dbPath);
   clearMarker(dbPath, 'create');
 
   // ---- database analyze ----
   writeMarker(dbPath, 'analyze', new Date().toISOString());
-  const analyzeArgs = [
-    'database', 'analyze', dbPath,
-    querySuite,
-    '--format=sarif-latest',
-    `--output=${sarifOut}`,
-  ];
-  if (ram) analyzeArgs.push(`--ram=${ram}`);
-  if (configPath) analyzeArgs.push(`--codescanning-config=${configPath}`);
   const analyzeSeconds = runStep('database analyze', analyzeArgs, dbPath);
   clearMarker(dbPath, 'analyze');
 
@@ -233,6 +284,7 @@ function parseCli(argv) {
     sarifOut: { type: 'string' },
     ram: { type: 'string' },
     pathsIgnore: { type: 'string' },
+    'dry-run': { type: 'boolean' },
     help: { type: 'boolean', short: 'h' },
   };
   return parseArgs({ args: argv.slice(2), options, strict: true }).values;
@@ -266,6 +318,7 @@ function main() {
       sarifOut: args.sarifOut,
       ram,
       pathsIgnore,
+      dryRun: Boolean(args['dry-run']),
     });
     process.stdout.write(JSON.stringify(result, null, 2) + '\n');
   } catch (err) {
@@ -284,6 +337,7 @@ if (require.main === module) {
 
 module.exports = {
   runScan,
+  planCommands,
   codeqlAvailable,
   SUPPORTED_LANGUAGES,
   EXIT,

@@ -101,6 +101,7 @@ const HTML_TAG_TO_DIRECTIVE = Object.freeze({
 const HELP = `Usage:
   scan-external-urls.js --projectRoot <path>
                         [--exclude <comma-separated directory names>]
+                        [--output <file>]
   scan-external-urls.js --help
 
 Scans a Power Pages code site's source files for external URLs and proposes
@@ -112,9 +113,14 @@ Options:
   --exclude <names>      Extra directory names to skip. Added on top of
                          the default exclusions (node_modules, .git, dist,
                          build, .powerpages-site, etc.).
+  --output <file>        Write the JSON result to <file> instead of stdout.
+                         Use this on large sites where bySourceFile would
+                         exceed the agent harness 10-30K char buffer; stdout
+                         then prints only a one-line {written, summary}
+                         pointer with directive counts.
   -h, --help             Show this help.
 
-Output (stdout):
+Output (stdout, default):
   {
     "byDirective": {
       "script-src":  ["<host>", ...],
@@ -131,10 +137,20 @@ Output (stdout):
     "bySourceFile": [ { "file": "<relpath>", "urls": ["<full url>", ...] } ]
   }
 
+Output (stdout, with --output):
+  { "written": "<absolute path>",
+    "summary": { "byDirectiveCounts": { "<directive>": N, ... },
+                 "totalSourceFiles": N } }
+
 Exit codes:
   0  Success.
   1  Unknown or I/O failure.
   2  Invalid or missing CLI arguments.
+
+Examples:
+  node scan-external-urls.js --projectRoot ./my-site
+  node scan-external-urls.js --projectRoot ./my-site --exclude legacy,tmp
+  node scan-external-urls.js --projectRoot ./my-site --output ./csp-scan.json
 `;
 
 function exitWithMessage(exitCode, message) {
@@ -336,6 +352,7 @@ function parseCli(argv) {
   const options = {
     projectRoot: { type: 'string' },
     exclude: { type: 'string' },
+    output: { type: 'string' },
     help: { type: 'boolean', short: 'h' },
   };
   return parseArgs({ args: argv.slice(2), options, strict: true }).values;
@@ -358,7 +375,24 @@ function main() {
       ? args.exclude.split(',').map((s) => s.trim()).filter(Boolean)
       : [];
     const result = scanProject({ projectRoot: args.projectRoot, extraExcludes });
-    process.stdout.write(JSON.stringify(result, null, 2) + '\n');
+    if (args.output) {
+      const outPath = path.resolve(args.output);
+      fs.mkdirSync(path.dirname(outPath), { recursive: true });
+      fs.writeFileSync(outPath, JSON.stringify(result, null, 2) + '\n', 'utf8');
+      const byDirectiveCounts = Object.fromEntries(
+        Object.entries(result.byDirective).map(([d, hosts]) => [d, hosts.length]),
+      );
+      const pointer = {
+        written: outPath,
+        summary: {
+          byDirectiveCounts,
+          totalSourceFiles: result.bySourceFile.length,
+        },
+      };
+      process.stdout.write(JSON.stringify(pointer, null, 2) + '\n');
+    } else {
+      process.stdout.write(JSON.stringify(result, null, 2) + '\n');
+    }
   } catch (err) {
     const exitCode = err.code === 'INVALID_ARGS' ? EXIT.INVALID_ARGS : EXIT.UNKNOWN;
     exitWithMessage(exitCode, err.stack || err.message);
