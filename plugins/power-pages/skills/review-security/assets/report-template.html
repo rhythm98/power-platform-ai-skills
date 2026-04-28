@@ -136,6 +136,54 @@ h3{font-size:15px;font-weight:700;color:var(--text-bright);margin-top:24px;margi
 .permissions-link a{color:var(--accent);text-decoration:none;font-weight:600;}
 .permissions-link a:hover{text-decoration:underline;}
 
+/* Domain banner */
+.domain-banner{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:var(--radius);padding:14px 18px;margin-bottom:18px;box-shadow:var(--shadow-4);}
+.domain-banner-head{font-size:14px;color:var(--text-bright);}
+.domain-banner-head code{font-family:var(--mono);font-size:11px;color:var(--accent);background:var(--accent-bg);padding:1px 6px;border-radius:3px;border:1px solid var(--accent-border);margin-left:6px;}
+.domain-headline{margin-top:10px;font-size:13px;line-height:1.65;padding:8px 12px;border-radius:var(--radius-sm);}
+.domain-headline-pass{background:var(--passing-bg);border-left:2px solid var(--passing);color:var(--text);}
+.domain-headline-failure{background:var(--high-bg);border-left:2px solid var(--high);color:var(--text);}
+
+/* CVE enrichment line on findings */
+.cve-enrichment{background:var(--surface2);border:1px solid var(--border);border-left:2px solid var(--purple);border-radius:var(--radius-sm);padding:8px 12px;margin-top:6px;font-family:var(--mono);font-size:11px;color:var(--text);line-height:1.6;}
+.cve-enrichment strong{color:var(--purple);font-weight:700;}
+
+/* Confidence-message cards (clean clusters) */
+.confidence-list{margin:14px 0 18px;}
+.confidence-list h3{margin-top:0;}
+.confidence-card{background:var(--passing-bg);border:1px solid var(--passing-border);border-left:2px solid var(--passing);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:8px;font-size:13px;line-height:1.6;}
+.confidence-id{display:inline-block;font-family:var(--mono);font-size:10px;color:var(--passing);background:var(--surface);padding:1px 6px;border-radius:3px;border:1px solid var(--passing-border);margin-right:8px;font-weight:700;letter-spacing:0.5px;}
+.confidence-text{margin-top:6px;color:var(--text-dim);font-size:12px;}
+
+/* Tradeoffs card */
+.tradeoffs-card{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--medium);border-radius:var(--radius);padding:14px 20px;margin-top:18px;box-shadow:var(--shadow-4);}
+.tradeoffs-card h3{margin-bottom:8px;font-size:14px;}
+.tradeoffs-card ul{margin:0;padding-left:20px;font-size:12px;color:var(--text);line-height:1.7;}
+.tradeoffs-card li{margin-bottom:6px;}
+
+/* Regulatory coverage cards */
+.standard-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:18px;overflow:hidden;box-shadow:var(--shadow-4);}
+.standard-head{display:flex;align-items:center;gap:10px;padding:14px 20px;background:var(--surface2);border-bottom:1px solid var(--border);}
+.standard-head h3{font-size:15px;font-weight:700;color:var(--text-bright);margin:0;letter-spacing:-0.2px;flex:1;}
+.standard-summary{font-size:11px;font-family:var(--mono);color:var(--text-dim);background:var(--surface);padding:2px 10px;border-radius:10px;border:1px solid var(--border);}
+.control-table{width:100%;border-collapse:collapse;font-size:12px;}
+.control-table thead{background:var(--surface2);}
+.control-table th{text-align:left;padding:8px 16px;font-size:10px;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.6px;border-bottom:1px solid var(--border);}
+.control-table td{padding:10px 16px;border-bottom:1px solid var(--border);vertical-align:top;}
+.control-table tr:last-child td{border-bottom:none;}
+.control-id code{font-family:var(--mono);font-size:11px;color:var(--accent);background:var(--accent-bg);padding:2px 7px;border-radius:3px;border:1px solid var(--accent-border);white-space:nowrap;}
+.control-name{color:var(--text);line-height:1.55;}
+.control-source{margin-top:6px;font-size:11px;color:var(--text-dim);}
+.control-source .field-label{display:inline;margin-right:6px;}
+.control-refs{margin-top:6px;font-size:11px;color:var(--text-dim);}
+.control-refs code{font-family:var(--mono);font-size:10px;color:var(--text);background:var(--surface2);padding:1px 5px;border-radius:3px;border:1px solid var(--border);margin-right:4px;}
+.control-status{white-space:nowrap;}
+.control-pill{font-size:10px;font-weight:700;padding:3px 9px;border-radius:10px;font-family:var(--mono);text-transform:uppercase;letter-spacing:0.5px;display:inline-block;}
+.control-pill-covered{color:var(--passing);background:var(--passing-bg);border:1px solid var(--passing-border);}
+.control-pill-not-applicable{color:var(--text-dim);background:var(--surface2);border:1px solid var(--border);}
+.control-pill-manual-only{color:var(--purple);background:var(--purple-bg);border:1px solid var(--purple-border);}
+.control-row-not-applicable{opacity:0.7;}
+
 /* Empty state */
 .empty-state{text-align:center;padding:40px;color:var(--text-dim);font-size:14px;}
 
@@ -168,6 +216,7 @@ h3{font-size:15px;font-weight:700;color:var(--text-bright);margin-top:24px;margi
         <span class="nav-badge" id="navFindingsCount" style="background:var(--critical-bg);color:var(--critical);"></span>
       </button>
       <button class="nav-btn" data-tab="permissions"><span class="nav-icon">&#9638;</span> Table Permissions</button>
+      <button class="nav-btn" data-tab="regulatory"><span class="nav-icon">&#9783;</span> Regulatory Coverage</button>
       <button class="nav-btn" data-tab="pending"><span class="nav-icon">&#8634;</span> Pending Scans
         <span class="nav-badge" id="navPendingCount" style="background:var(--high-bg);color:var(--high);"></span>
       </button>
@@ -178,7 +227,9 @@ h3{font-size:15px;font-weight:700;color:var(--text-bright);margin-top:24px;margi
       <!-- OVERVIEW -->
       <div class="section active" id="tab-overview">
         <h2>Security Review Overview</h2>
-        <p class="section-desc">Concern-driven review of the site's current security posture, aggregated from every security-related area — web application firewall, HTTP headers, dynamic scan, code analysis — plus the existing table-permissions audit. The Concerns metadata below lists everything the reviewer picked in Phase 2; the Findings tab shows one section per concern. Remediations route to the skill that owns each concern.</p>
+        <p class="section-desc">Concern-driven review of the site's current security posture, aggregated from every security-related area — web application firewall, HTTP headers, dynamic scan, code analysis — plus the existing table-permissions audit. The Concerns metadata below lists everything the reviewer picked; the Findings tab shows one section per concern. Remediations route to the skill that owns each concern.</p>
+
+        __DOMAIN_BANNER__
 
         <div class="stats-grid">
           <div class="stat-card"><div class="stat-num" style="color:var(--critical)" id="statCritical">0</div><div class="stat-label">Critical</div></div>
@@ -192,12 +243,15 @@ h3{font-size:15px;font-weight:700;color:var(--text-bright);margin-top:24px;margi
 
         <h3>Summary</h3>
         <div class="card">__SUMMARY__</div>
+
+        __TRADEOFFS__
       </div>
 
       <!-- FINDINGS -->
       <div class="section" id="tab-findings">
         <h2>Findings</h2>
         <p class="section-desc" id="findingsDesc"></p>
+        __CONFIDENCE_MESSAGES__
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
           <div class="filter-bar" id="filterBar" style="margin-bottom:0;"></div>
           <button class="filter-btn" id="expandAllBtn" onclick="toggleExpandAll()" style="white-space:nowrap;">Expand All</button>
@@ -212,6 +266,13 @@ h3{font-size:15px;font-weight:700;color:var(--text-bright);margin-top:24px;margi
         <h2>Table Permissions</h2>
         <p class="section-desc">Findings from the <code>/audit-permissions</code> skill, re-rendered under the unified Critical / High / Medium / Passing scheme.</p>
         __PERMISSIONS_AUDIT__
+      </div>
+
+      <!-- REGULATORY COVERAGE -->
+      <div class="section" id="tab-regulatory">
+        <h2>Regulatory Coverage</h2>
+        <p class="section-desc">Per-standard control coverage for the regulatory framework that applies to this site's domain. Each control is marked <strong>Covered</strong> when the relevant scan ran this session, <strong>Not run</strong> when the scan was skipped, or <strong>Manual only</strong> when the control is process-level and outside the skill's automated scope. Only automatable controls are listed — process / governance / documentation controls are not assessed here. Mapping authority: <code>${CLAUDE_PLUGIN_ROOT}/references/regulatory-controls.md</code>.</p>
+        __REGULATORY_COVERAGE__
       </div>
 
       <!-- PENDING -->

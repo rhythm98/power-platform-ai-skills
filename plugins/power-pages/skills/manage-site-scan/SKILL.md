@@ -13,7 +13,7 @@ description: >-
   Studio).
 user-invocable: true
 argument-hint: "[optional: quick, deep, report, score]"
-allowed-tools: Read, Write, Bash, Glob, Grep, AskUserQuestion, TaskCreate, TaskUpdate, TaskList
+allowed-tools: Read, Write, Bash, Glob, Grep, WebFetch, AskUserQuestion, TaskCreate, TaskUpdate, TaskList
 model: opus
 ---
 
@@ -31,6 +31,8 @@ Run a security scan against a Power Pages site and fetch the results. Four user 
 ## When to load which reference
 
 - `references/commands.md` — when building `--quick`, `--deep`, `--ongoing`, `--report`, or `--score` command lines; when interpreting exit codes on stderr.
+- `${CLAUDE_PLUGIN_ROOT}/references/threat-context.md` — load in Phase 6 to frame results: OWASP Top 10:2025 mapping, scan-type coverage table, trusted public data sources, runtime metric fetching, and confidence-message templates.
+- `${CLAUDE_PLUGIN_ROOT}/references/domain-attack-profiles.md` — load in Phase 3 for the detection guidance, and again in Phase 6 to rank findings against the chosen domain's `top_owasp` and pull the matching `failure_emphasis` / `pass_emphasis` snippets.
 - `${CLAUDE_PLUGIN_ROOT}/references/admin-script-conventions.md` — when the user asks why the portal id differs from what they see in `pac pages list`, or when diagnosing prerequisite or auth failures.
 
 ## Gotchas
@@ -73,14 +75,31 @@ Before asking the user what they want, check whether a deep scan is currently ru
 node "${CLAUDE_PLUGIN_ROOT}/skills/manage-site-scan/scripts/scan.js" --ongoing --portalId <guid>
 ```
 
-The command returns `true` (a scan is running) or `false` (idle). Knowing the state changes Phase 3's options:
+The command returns `true` (a scan is running) or `false` (idle). Knowing the state changes Phase 4's options:
 
 - **If a deep scan is ongoing** — the user cannot start a new deep scan (`Z003` refusal). They can run a quick scan, fetch an older completed report, or wait for the current scan to finish. `--report` and `--score` will also refuse until the ongoing scan completes.
-- **If no scan is ongoing** — all Phase 3 options are available.
+- **If no scan is ongoing** — all Phase 4 options are available.
 
 Summarize the state to the user in one sentence before continuing.
 
-### Phase 3 — Align on the desired scan action
+### Phase 3 — Detect the site's domain
+
+Domain context (finance / healthcare / retail / government / education / B2B SaaS / non-profit / general) drives how Phase 6 ranks findings. Classify the site by reasoning over its content. Read the relevant signals, decide on a domain, and propose. The user always confirms or overrides.
+
+Load `${CLAUDE_PLUGIN_ROOT}/references/domain-attack-profiles.md` and follow its **Detection guidance** section. In short:
+
+1. Read the highest-signal sources first — `index.html` (`<title>`, `<meta name="description">`), `powerpages.config.json` (`siteName`), and `.powerpages-site/website.yml` (`name`, `description`).
+2. If the picture isn't clear, drop to web-roles, table-permissions, and `.datamodel-manifest.json` (if present).
+3. Skip site-settings unless still ambiguous — they are mostly plumbing.
+4. Form a confidence judgment (high / medium / low) per the guidance doc:
+   - **high**: confirm in one line and continue.
+   - **medium**: show the proposal plus the signals you read, and use `AskUserQuestion` to offer override.
+   - **low**: default to `general`, use `AskUserQuestion` to ask the user to pick from the eight-key catalog.
+5. The user's selection is **always authoritative** — do not override a confirmed user choice with the proposed classification on a follow-up.
+
+Stash the chosen domain key for Phase 6.
+
+### Phase 4 — Align on the desired scan action
 
 Use `AskUserQuestion` to confirm intent. The skill supports four actions; each session typically picks one:
 
@@ -95,7 +114,7 @@ For quick vs deep, explain the difference before asking — users frequently con
 
 If the user asks for authenticated-page coverage, point them at Studio.
 
-### Phase 4 — Execute the action
+### Phase 5 — Execute the action
 
 For the write action (`--deep`), pause with `AskUserQuestion` showing the exact command and the disclosures below. Wait for approval, then run. Read actions (`--quick`, `--report`, `--score`) run without an approval pause since they do not modify state.
 
@@ -120,11 +139,39 @@ Branch on the command's exit code. Full table in `references/commands.md`. The o
 
 Do not retry exit codes `4` or `5` — those are state refusals that will not resolve with a quick retry.
 
-### Phase 5 — Present results or polling instructions
+### Phase 6 — Present results (domain-aware)
 
-The Phase 5 shape depends on which action ran in Phase 4:
+Phase 6 is the dynamic part of this skill. Before formatting any output, load both:
 
-**`--quick` ran** — the stdout is an array of diagnostic items. Each item has `issue` (title), `category`, `result` (one of Pass / Error / Warning / Information), `description`, and `learnMoreUrl`. Group by `result`, present a summary count, then list the errors and warnings in detail with their description and documentation link. Skip the Pass items unless the user asks for the full list.
+- `${CLAUDE_PLUGIN_ROOT}/references/threat-context.md` — for OWASP rank lookup, scan-type coverage, runtime metric fetching, and confidence-message templates.
+- `${CLAUDE_PLUGIN_ROOT}/references/domain-attack-profiles.md` — for the chosen domain's `top_owasp`, `regulatory_frame`, and `failure_emphasis` / `pass_emphasis` snippets.
+
+Anchor claims to OWASP rank labels (A01-A10), CVE IDs, and runtime-fetched CVSS / EPSS / CISA-KEV values, attributed to the source body (OWASP Top 10:2025, CISA KEV, NIST NVD, FIRST EPSS). When a quantitative figure adds value, fetch it via `WebFetch` from the trusted sources listed in `${CLAUDE_PLUGIN_ROOT}/references/threat-context.md` (see the **Trusted public data sources** section); on fetch failure, fall back to qualitative phrasing.
+
+In all cases, **rank by domain relevance, not raw severity alone** — a high-severity finding outside the domain's top OWASP categories is still important, but the lead item should be the highest-severity finding whose OWASP rank appears in the domain's `top_owasp` list.
+
+**Live CVE enrichment.** When findings include CVE identifiers, shell out to the plugin-shared helper to fetch live KEV / EPSS / CVSS values from public open-data sources:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/fetch-cve-context.js" --cves CVE-XXXX-NNNN,CVE-YYYY-MMMM,...
+```
+
+The script caps at 5 CVEs by default (sort findings by report-supplied severity and pass the top 5), batches the EPSS call, paces NVD calls under its 5/30s soft limit, and caches the KEV feed in-process. Stdout is a JSON `{ results, sources, allDown }` object. Exit codes:
+
+- **0** — usable data; merge `results[].cvss` / `epss` / `kev` into each finding's display.
+- **1** — all three sources are down. Skip enrichment and add a one-line note ("live enrichment unavailable; using report-supplied severity") to the output.
+- **2** — bad CLI args.
+
+Full source/format details are in `${CLAUDE_PLUGIN_ROOT}/references/threat-context.md` under **Runtime metric fetching** → **CVE-bearing findings**.
+
+**`--quick` ran** — stdout is an array of diagnostic items shaped as `{ issue, category, result, description, learnMoreUrl }`. Build a summary count by `result`, then for each Error / Warning:
+
+1. Map its `category` to an OWASP rank using the table in `threat-context.md`.
+2. Compute relevance: `domain-priority` if the rank is in the chosen domain's `top_owasp`, else `general`.
+3. Lead with the domain-priority items in order; follow with the rest. Do not dump Pass items unless the user asks.
+4. For each surfaced finding, include: the issue, the OWASP rank label (A01-A10), a one-line "what this enables an attacker to do", and the `learnMoreUrl`. Optionally append a runtime-fetched figure from `https://owasp.org/Top10/` with attribution.
+
+If everything passed, lead with the chosen domain's `pass_emphasis` line plus the `CM-OVERALL` template from `threat-context.md`.
 
 **`--deep` started** — acknowledge that the scan is running server-side. Tell the user:
 - Expected duration: a substantial wait server-side — the completion email is the authoritative signal; the skill should not poll tightly.
@@ -137,20 +184,35 @@ The Phase 5 shape depends on which action ran in Phase 4:
   ```bash
   node "${CLAUDE_PLUGIN_ROOT}/skills/manage-site-scan/scripts/scan.js" --report --portalId <guid>
   ```
+- Note that when the report is fetched later, the same domain-aware framing will be applied — record the chosen domain key so a follow-up session can reuse it without re-running detection.
 
-After acknowledgment, Phase 5 is done — do NOT spin on `--ongoing` for the full scan duration; it is long enough to exhaust the session.
+After acknowledgment, Phase 6 is done — do NOT spin on `--ongoing` for the full scan duration; it is long enough to exhaust the session.
 
-**`--report` ran** — the stdout is a structured report object with `TotalRuleCount`, `FailedRuleCount`, `TotalAlertCount`, `UserName` (who started the scan), `StartTime`, `EndTime`, and a `Rules` array grouped by rule (each entry has `RuleId`, `RuleName`, `RuleStatus`, `AlertsCount`, and `Alerts`). Each alert carries `AlertName`, `Description`, `Mitigation`, and a `Risk` rank (0=Informational, 1=Low, 2=Medium, 3=High). Present a summary (counts + start/end times) and then drill into the failed rules with their alerts' descriptions and mitigations. Do not dump the full pass list.
+**`--report` ran** — stdout is a structured report with `TotalRuleCount`, `FailedRuleCount`, `TotalAlertCount`, `UserName`, `StartTime`, `EndTime`, and `Rules` (each with `RuleId`, `RuleName`, `RuleStatus`, `AlertsCount`, `Alerts`). Each alert carries `AlertName`, `Description`, `Mitigation`, and `Risk` (0=Informational, 1=Low, 2=Medium, 3=High).
 
-**`--score` ran** — the stdout is `{ totalRules, succeededRules }`. Compute and show a percentage as well as the raw pair. Tell the user the source scan's timestamp if they want context (they can fetch it via `--report`).
+Before presenting, scan the alerts for any CVE references in `AlertName` or `Description` and run the **Live CVE enrichment** step above for the top-5 by Risk. Then present in this order:
 
-### Phase 6 — Summarize and record usage
+1. **Headline** — one paragraph: the chosen domain's `pass_emphasis` (if `FailedRuleCount === 0`) or `failure_emphasis` (otherwise), plus counts and the run window.
+2. **Domain-priority failures** — failures whose mapped OWASP rank is in `top_owasp` for the chosen domain. For each, include the rule, the alerts (sorted Risk 3 → 0), and:
+   - If the alert references a CVE: the enriched metrics line — `CVE-XXXX-NNNN (CVSS <baseScore> <baseSeverity>, EPSS <epss> — top <100-percentile>%, KEV: <yes-with-dueDate / no>)`.
+   - Otherwise (no CVE in the alert): the OWASP rank label only, optionally augmented with a runtime-fetched figure from the OWASP per-category page (https://owasp.org/Top10/) with attribution.
+   - Followed by the alert's `Mitigation` text.
+   Use the failure messaging principles from `threat-context.md` — lead with attacker capability, anchor to public metrics, then the mitigation.
+3. **Other failures** — remaining failures, condensed to one line each (rule + count + top alert), unless the user asks for full detail.
+4. **Confidence summary for passing clusters** — for each scan family that passed cleanly (deps, static, dynamic, config, secrets, auth/access), pick the matching `CM-*` template from `threat-context.md` and substitute live numbers. Skip a cluster if the report does not exercise it.
+5. **Tradeoffs to disclose** — close with one of the caveats from `threat-context.md`'s tradeoffs section. Always include one — never leave the user with the impression a clean scan = permanently safe.
 
-Summarize what ran and what the user should do next:
+Do not dump the full pass list of rules.
 
-- For `--quick`: list the top 3–5 warnings/errors and suggest remediation paths (delegate to `/review-security` for a framework-driven review if the findings span multiple areas).
-- For `--deep` start: remind the user of the email-on-completion signal and the polling commands.
-- For `--report` / `--score`: point out any deltas vs prior expectations.
+**`--score` ran** — stdout is `{ totalRules, succeededRules }`. Compute and show a percentage and the raw pair. Frame it for the chosen domain: "<X>% of the rules relevant to <regulatory_frame> sites passed" when `regulatory_frame` is non-empty, otherwise the plain percentage. If the user wants context, point them at `--report`.
+
+### Phase 7 — Summarize and record usage
+
+Summarize what ran and what the user should do next, keeping the domain framing consistent with Phase 6:
+
+- For `--quick`: list the top 3–5 warnings/errors **ordered by domain priority** (domain-`top_owasp` matches first), with one-line remediation paths. If findings span multiple areas, suggest `/review-security` for a framework-driven review — call out the `regulatory_frame` if one applies.
+- For `--deep` start: remind the user of the email-on-completion signal and the polling commands. Note the detected domain so the follow-up session can skip detection.
+- For `--report` / `--score`: point out any deltas vs prior expectations and reiterate the highest-priority unresolved item for the domain.
 
 > Reference: `${CLAUDE_PLUGIN_ROOT}/references/skill-tracking-reference.md`
 
@@ -166,7 +228,8 @@ Keep this table in your final response, filling each status as phases complete:
 |---|---|
 | 1. Prerequisites and portal id resolution | ☐ |
 | 2. Read current scan state | ☐ |
-| 3. Align on desired scan action | ☐ |
-| 4. Execute the action | ☐ |
-| 5. Present results or polling instructions | ☐ |
-| 6. Summarize and record usage | ☐ |
+| 3. Detect site domain | ☐ |
+| 4. Align on desired scan action | ☐ |
+| 5. Execute the action | ☐ |
+| 6. Present results (domain-aware) | ☐ |
+| 7. Summarize and record usage | ☐ |

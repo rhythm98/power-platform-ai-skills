@@ -11,7 +11,7 @@
 //   Trivy    — SCA findings with CVE IDs on ruleId + severity; license
 //              findings with license classes (restricted / reciprocal / …)
 //
-// The skill interprets tags per-tool in its Phase 6; this script stays
+// The skill interprets tags per-tool in its Phase 7; this script stays
 // generic — it surfaces tags verbatim without a cross-tool mapping.
 //
 // CLI usage:

@@ -151,6 +151,41 @@ function countBySeverity(findings) {
   return counts;
 }
 
+// Render the optional cveEnrichment line for findings that carry one. Each
+// sub-object (cvss / epss / kev) is independent — if a runtime fetch errored
+// or hit a 429, only the sub-objects that succeeded are present, and the
+// rendered line skips the missing pieces gracefully.
+function renderCveEnrichment(enrichment) {
+  if (!enrichment || typeof enrichment !== 'object') return '';
+  const parts = [];
+  const cvss = enrichment.cvss;
+  if (cvss && (cvss.baseScore != null || cvss.baseSeverity)) {
+    const score = cvss.baseScore != null ? `CVSS ${escapeHtml(cvss.baseScore)}` : 'CVSS';
+    const sev = cvss.baseSeverity ? ` ${escapeHtml(cvss.baseSeverity)}` : '';
+    parts.push(`${score}${sev}`);
+  }
+  const epss = enrichment.epss;
+  if (epss && epss.epss != null) {
+    const pct = epss.percentile != null
+      ? ` (top ${escapeHtml(Math.round((1 - Number(epss.percentile)) * 100))}%)`
+      : '';
+    parts.push(`EPSS ${escapeHtml(epss.epss)}${pct}`);
+  }
+  const kev = enrichment.kev;
+  if (kev && typeof kev === 'object') {
+    if (kev.listed) {
+      const due = kev.dueDate ? `, due ${escapeHtml(kev.dueDate)}` : '';
+      const added = kev.dateAdded ? ` (added ${escapeHtml(kev.dateAdded)}${due})` : '';
+      parts.push(`KEV: yes${added}`);
+    } else {
+      parts.push('KEV: no');
+    }
+  }
+  if (parts.length === 0) return '';
+  const cveId = enrichment.cveId ? `<strong>${escapeHtml(enrichment.cveId)}</strong> · ` : '';
+  return `<div style="margin-top:10px;"><div class="field-label">Live metrics</div><div class="cve-enrichment">${cveId}${parts.join(' · ')}</div></div>`;
+}
+
 function renderFinding(f) {
   const rem = f.remediation || {};
   const sev = (f.severity || 'medium').toLowerCase();
@@ -173,6 +208,7 @@ function renderFinding(f) {
   const delegatePill = rem.delegateTo
     ? ` <code>${escapeHtml(rem.delegateTo)}</code>`
     : '';
+  const cveBlock = renderCveEnrichment(f.cveEnrichment);
   return `
     <div class="finding-card filter-${escapeHtml(sev)}">
       <div class="finding-header">
@@ -184,6 +220,7 @@ function renderFinding(f) {
       </div>
       <div class="finding-body">
         ${f.evidence ? `<div style="margin-top:10px;"><div class="field-label">Evidence</div><div class="evidence-block">${escapeHtml(f.evidence)}</div></div>` : ''}
+        ${cveBlock}
         ${rem.description ? `<div style="margin-top:10px;"><div class="field-label">Suggested remediation</div><div class="remediation-block"><strong>Fix:</strong> ${escapeHtml(rem.description)}${delegatePill ? ` (via${delegatePill})` : ''}</div></div>` : ''}
         ${beforeAfter}
       </div>
@@ -320,6 +357,135 @@ function renderPendingScans(findings) {
   `.trim();
 }
 
+// Domain banner — shows the chosen industry profile, regulatory frame, and
+// the headline emphasis snippet (failure_emphasis or pass_emphasis from the
+// domain profile). Returns empty string when no domain was set.
+function renderDomainBanner(findings) {
+  const m = findings.metadata || {};
+  const domain = m.domain;
+  if (!domain || (!domain.key && !domain.displayName)) return '';
+  const display = escapeHtml(domain.displayName || domain.key);
+  const key = domain.key ? ` <code>${escapeHtml(domain.key)}</code>` : '';
+  const frame = m.regulatoryFrame
+    ? `<div style="margin-top:6px;font-size:12px;color:var(--text-dim);"><strong>Regulatory frame:</strong> ${escapeHtml(m.regulatoryFrame)}</div>`
+    : '';
+  const headline = m.headline && m.headline.text
+    ? `<div class="domain-headline domain-headline-${escapeHtml((m.headline.kind || 'failure').toLowerCase())}">${escapeHtml(m.headline.text)}</div>`
+    : '';
+  return `
+    <div class="domain-banner">
+      <div class="domain-banner-head"><strong>Domain:</strong> ${display}${key}</div>
+      ${frame}
+      ${headline}
+    </div>
+  `.trim();
+}
+
+// Confidence messages — one card per scan family that produced zero findings.
+// The skill picks the matching CM-* template from threat-context.md and
+// passes the title + body in the JSON; this just renders.
+function renderConfidenceMessages(findings) {
+  const list = findings.metadata?.confidenceMessages;
+  if (!Array.isArray(list) || list.length === 0) return '';
+  const items = list.map((m) => {
+    const id = m && m.id ? `<span class="confidence-id">${escapeHtml(m.id)}</span>` : '';
+    const title = m && m.title ? `<strong>${escapeHtml(m.title)}</strong>` : '';
+    const text = m && m.text ? `<div class="confidence-text">${escapeHtml(m.text)}</div>` : '';
+    return `<div class="confidence-card">${id}${title}${text}</div>`;
+  }).join('\n');
+  return `
+    <div class="confidence-list">
+      <h3>Clean clusters</h3>
+      ${items}
+    </div>
+  `.trim();
+}
+
+// Regulatory coverage — one card per standard from the domain profile's
+// regulatory_frame. Each card has a row per control with a status pill
+// (covered / not-applicable / manual-only) and deep-links to evidence
+// findings. When the regulatoryCoverage array is empty (e.g., `general`
+// domain), shows the empty-state message.
+function renderRegulatoryCoverage(findings) {
+  const list = findings.metadata?.regulatoryCoverage;
+  if (!Array.isArray(list) || list.length === 0) {
+    return '<div class="empty-state">No regulatory framework was selected for this review.</div>';
+  }
+  // Group by standard, preserving first-seen order.
+  const order = [];
+  const grouped = new Map();
+  for (const row of list) {
+    if (!row || typeof row !== 'object') continue;
+    const standard = row.standard || '(unspecified standard)';
+    if (!grouped.has(standard)) {
+      grouped.set(standard, []);
+      order.push(standard);
+    }
+    grouped.get(standard).push(row);
+  }
+  return order.map((standard) => {
+    const rows = grouped.get(standard);
+    const counts = { covered: 0, 'not-applicable': 0, 'manual-only': 0 };
+    for (const r of rows) {
+      const s = (r.status || 'manual-only').toLowerCase();
+      if (counts[s] !== undefined) counts[s] += 1;
+    }
+    const summary = `${counts.covered} covered · ${counts['not-applicable']} not run · ${counts['manual-only']} manual-only`;
+    const tableRows = rows.map((r) => {
+      const status = (r.status || 'manual-only').toLowerCase();
+      const STATUS_LABELS = {
+        'covered': 'Covered',
+        'not-applicable': 'Not run',
+        'manual-only': 'Manual only',
+      };
+      const statusLabel = STATUS_LABELS[status] || status;
+      const refs = Array.isArray(r.findingsRefs) && r.findingsRefs.length
+        ? `<div class="control-refs">${r.findingsRefs.length} finding${r.findingsRefs.length === 1 ? '' : 's'}: ${r.findingsRefs.map((id) => `<code>${escapeHtml(id)}</code>`).join(', ')}</div>`
+        : '';
+      const source = r.checkSource
+        ? `<div class="control-source"><span class="field-label">Check source</span> ${escapeHtml(r.checkSource)}</div>`
+        : '';
+      return `
+        <tr class="control-row control-row-${escapeHtml(status)}">
+          <td class="control-id"><code>${escapeHtml(r.controlId || '')}</code></td>
+          <td class="control-name">${escapeHtml(r.controlName || '')}${source}${refs}</td>
+          <td class="control-status"><span class="control-pill control-pill-${escapeHtml(status)}">${escapeHtml(statusLabel)}</span></td>
+        </tr>
+      `.trim();
+    }).join('\n');
+    return `
+      <div class="standard-card">
+        <div class="standard-head">
+          <h3>${escapeHtml(standard)}</h3>
+          <span class="standard-summary">${escapeHtml(summary)}</span>
+        </div>
+        <table class="control-table">
+          <thead><tr><th>Control</th><th>Title</th><th>Status</th></tr></thead>
+          <tbody>${tableRows}</tbody>
+        </table>
+      </div>
+    `.trim();
+  }).join('\n');
+}
+
+// Tradeoffs to disclose — at least one caveat from threat-context.md. Always
+// rendered when the skill includes tradeoffs in metadata; the SKILL.md
+// requires at least one. Empty array → empty render so callers that omit it
+// don't crash, but they should always include one.
+function renderTradeoffs(findings) {
+  const list = findings.metadata?.tradeoffs;
+  if (!Array.isArray(list) || list.length === 0) {
+    return '<div class="empty-state" style="padding:20px;">No tradeoffs disclosed.</div>';
+  }
+  const items = list.map((t) => `<li>${escapeHtml(t)}</li>`).join('\n');
+  return `
+    <div class="tradeoffs-card">
+      <h3 style="margin-top:0;">Tradeoffs to keep in mind</h3>
+      <ul>${items}</ul>
+    </div>
+  `.trim();
+}
+
 function renderMetadata(findings) {
   const m = findings.metadata || {};
   const scans = Array.isArray(m.scansIncluded) && m.scansIncluded.length
@@ -348,9 +514,21 @@ function renderMetadata(findings) {
     : m.deepScan === false
     ? 'Skipped'
     : '(not recorded)';
+  // Domain row — surface the industry classification and regulatory frame
+  // in the metadata table when set. Falls back gracefully when neither is
+  // recorded (older JSON or the user picked `general` without a frame).
+  const domainLabel = (() => {
+    const d = m.domain;
+    if (!d) return '(not recorded)';
+    if (d.displayName && d.key) return `${d.displayName} (${d.key})`;
+    return d.displayName || d.key || '(not recorded)';
+  })();
+  const frameLabel = m.regulatoryFrame ? escapeHtml(m.regulatoryFrame) : '(none specified)';
   return `
     <dl class="metadata-dl">
       <dt>Concerns</dt><dd>${escapeHtml(concernsLabel)}</dd>
+      <dt>Domain</dt><dd>${escapeHtml(domainLabel)}</dd>
+      <dt>Regulatory frame</dt><dd>${frameLabel}</dd>
       <dt>Deep dynamic scan</dt><dd>${escapeHtml(deepScanLabel)}</dd>
       <dt>Site</dt><dd>${escapeHtml(m.siteName || '(unknown)')}</dd>
       <dt>Portal id</dt><dd><code>${escapeHtml(m.portalId || '(unknown)')}</code></dd>
@@ -395,11 +573,15 @@ function render({ findingsPath, outputPath, dryRun = false } = {}) {
     : 0;
   const tokens = {
     __SITE_NAME__: escapeHtml(siteNameFromFindings(findings)),
+    __DOMAIN_BANNER__: renderDomainBanner(findings),
     __METADATA__: renderMetadata(findings),
     __SUMMARY__: renderSummary(findings),
+    __CONFIDENCE_MESSAGES__: renderConfidenceMessages(findings),
     __PENDING_SCANS__: renderPendingScans(findings),
     __CATEGORIES__: renderConcerns(findings),
     __PERMISSIONS_AUDIT__: renderPermissionsAudit(findings),
+    __REGULATORY_COVERAGE__: renderRegulatoryCoverage(findings),
+    __TRADEOFFS__: renderTradeoffs(findings),
     // Severity counts and pending count are injected as JSON literals so the
     // template's small amount of JS can render stat cards and nav badges
     // without an extra data-attribute round-trip.
@@ -472,9 +654,14 @@ module.exports = {
   renderConcerns,
   renderCategoryBlock,
   renderFinding,
+  renderCveEnrichment,
   renderPermissionsAudit,
   renderPendingScans,
   renderMetadata,
+  renderDomainBanner,
+  renderConfidenceMessages,
+  renderRegulatoryCoverage,
+  renderTradeoffs,
   countBySeverity,
   siteNameFromFindings,
   hasOwaspConcern,

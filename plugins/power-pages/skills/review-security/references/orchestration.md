@@ -16,9 +16,9 @@ Single consolidated reference for the `review-security` meta-skill — the conce
 
 ## Concern → scan tools
 
-Phase 2 of the meta-skill asks the user which **concerns** to review in a three-question sequence (Q1 single-select site-code view; Q2 multi-select additive concerns; Q3 deep-scan toggle — see `SKILL.md` Phase 2 for the exact picker text). Each concern the user ends up picking implies a specific set of scan tools. Use this table to decide which scans to kick off in Phase 3.
+Phase 3 of the meta-skill asks the user which **concerns** to review in a three-question sequence (Q1 single-select site-code view; Q2 multi-select additive concerns; Q3 deep-scan toggle — see `SKILL.md` Phase 3 for the exact picker text). Each concern the user ends up picking implies a specific set of scan tools. Use this table to decide which scans to kick off in Phase 4.
 
-| Concern (Phase 2 label) | Technical name | Phase 2 question | Applicable tools | Default state | Notes |
+| Concern (Phase 3 label) | Technical name | Phase 3 question | Applicable tools | Default state | Notes |
 |---|---|---|---|---|---|
 | **Site code — common web attacks view** | OWASP Top 10 | Q1 (single-select, site-code group) | ZAP deep dynamic scan; Semgrep with `p/owasp-top-ten`; CodeQL with `javascript-security-extended.qls` | Not pre-selected | Semgrep is preferred over CodeQL because its rules ship with direct `owasp:A0N:*` tags; CodeQL tags only CWE, so mapping to OWASP would be manual. |
 | **Site code — detailed weakness view** | CWE Top 25 | Q1 (single-select, site-code group) | ZAP deep dynamic scan; Semgrep with `p/cwe-top-25`; CodeQL | ✅ Pre-selected (Q1 default) | Pre-selected as the default code-scan view because CWE Top 25 subsumes most OWASP Top 10 classes and adds finer-grained weakness types. CodeQL is the strong alternative to Semgrep when deep dataflow matters; flag the longer runtime when proposing. |
@@ -28,15 +28,15 @@ Phase 2 of the meta-skill asks the user which **concerns** to review in a three-
 | **Third-party packages — licensing** | License audit | Q2 (multi-select, additive) | Trivy filesystem scan (`--scanners license`, or `vuln,license` for a single-pass combined SCA+license run) | ✅ Pre-checked | When CVE / SCA is also in scope, prefer the combined `vuln,license` invocation — one walk of the dependency tree, both outputs. |
 | **Your own checklist** | Bring-your-own | Q2 (multi-select, additive) | Whichever tool the user specifies (Semgrep custom rules, CodeQL query pack, organizational checklist, etc.) | ✅ Pre-checked | The user names the tool / checklist when they pick this concern. Items with no matching automated signal are flagged manual-review. |
 
-**Bypass-all is a derived state, not a concern.** When Q1 is "Skip the site-code scan" AND Q2 has zero ticks, the concerns list is empty and only the posture snapshot runs. Phase 2 surfaces a "not recommended" confirmation in that case — see `SKILL.md` Phase 2 for the exact disclosure text. Do NOT add a "Bypass all" row to either picker question.
+**Bypass-all is a derived state, not a concern.** When Q1 is "Skip the site-code scan" AND Q2 has zero ticks, the concerns list is empty and only the posture snapshot runs. Phase 3 surfaces a "not recommended" confirmation in that case — see `SKILL.md` Phase 3 for the exact disclosure text. Do NOT add a "Bypass all" row to either picker question.
 
-**Deep scan toggle.** Phase 2's second question — "How thorough should the code scan be?" — gates whether ZAP is included. ZAP is pre-selected (thorough) because dynamic runtime evidence catches classes SAST cannot (authentication-flow defects, rendered-output XSS, TLS misconfig). The user can opt to the fast-only path to skip ZAP; the ZAP-only findings are left for `/manage-site-scan --deep` to run later.
+**Deep scan toggle.** Phase 3's second question — "How thorough should the code scan be?" — gates whether ZAP is included. ZAP is pre-selected (thorough) because dynamic runtime evidence catches classes SAST cannot (authentication-flow defects, rendered-output XSS, TLS misconfig). The user can opt to the fast-only path to skip ZAP; the ZAP-only findings are left for `/manage-site-scan --deep` to run later.
 
 **Tool availability caveat.** If a recommended tool is not installed on the user's machine (check via `skills/manage-code-scan/scripts/check-tools.js`), either (a) swap in the concern's alternative if present and call out the trade-off, or (b) surface an install pointer and leave the tool unavailable with a visible reason. Never silently drop a tool from the concern's scan set.
 
 ## Concern → report grouping
 
-Each concern picked in Phase 2 drives one section in the unified HTML report. This table is the authoritative map Phase 4 uses to bucket findings inside each section and the `concerns[].categories[].id` convention in the findings JSON.
+Each concern picked in Phase 3 drives one section in the unified HTML report. This table is the authoritative map Phase 5 uses to bucket findings inside each section and the `concerns[].categories[].id` convention in the findings JSON.
 
 | Concern | Section heading | `categories[].id` | How findings are grouped inside the section |
 |---|---|---|---|
@@ -105,7 +105,7 @@ Severity assignment guidance:
 
 ## Findings JSON schema
 
-The `render-report.js` script consumes a single JSON file with this shape. Build it by aggregating the posture snapshot + individual skill outputs. The top-level `concerns[]` array mirrors the concerns the user picked in Phase 2 — one entry per concern, in the order they were picked.
+The `render-report.js` script consumes a single JSON file with this shape. Build it by aggregating the posture snapshot + individual skill outputs. The top-level `concerns[]` array mirrors the concerns the user picked in Phase 3 — one entry per concern, in the order they were picked.
 
 ```json
 {
@@ -119,6 +119,44 @@ The `render-report.js` script consumes a single JSON file with this shape. Build
     "scansSkipped": [],
     "pendingScans": [
       { "type": "deep-security-scan", "pollCommand": "node scan.js --ongoing --portalId <guid>" }
+    ],
+    "domain": {
+      "key": "finance",
+      "displayName": "Financial services"
+    },
+    "regulatoryFrame": "PCI-DSS, SOX, GLBA, regional (FFIEC / PSD2 / RBI)",
+    "headline": {
+      "kind": "failure",
+      "text": "Financial services is consistently among the highest-cost industries in industry breach analyses. Broken access control and software supply-chain failures are leading OWASP Top 10:2025 categories and both carry direct regulatory exposure under SOX / GLBA / PCI-DSS."
+    },
+    "confidenceMessages": [
+      {
+        "id": "CM-DEPS",
+        "title": "All software components are up to date.",
+        "text": "Unpatched known software flaws are a leading cause of breaches in industry aggregate analyses. By verifying every component on your site has the latest security patches, this scan closed off this attack path."
+      }
+    ],
+    "tradeoffs": [
+      "Security is continuous. Scan results reflect site state at scan time. Vulnerability disclosure rates are high and growing year over year (NVD aggregate); periodic re-scanning is essential.",
+      "Scans cover known patterns, not all attacks. Zero-day vulnerabilities and business-logic flaws may not be caught by automated tools. Complement automated scans with manual review."
+    ],
+    "regulatoryCoverage": [
+      {
+        "standard": "PCI-DSS",
+        "controlId": "6.5.1",
+        "controlName": "Bespoke and custom software developed securely (injection)",
+        "status": "covered",
+        "checkSource": "Semgrep, CodeQL, ZAP deep",
+        "findingsRefs": ["semgrep-xss-index-tsx-42"]
+      },
+      {
+        "standard": "PCI-DSS",
+        "controlId": "11.3.1",
+        "controlName": "External penetration testing",
+        "status": "manual-only",
+        "checkSource": null,
+        "findingsRefs": []
+      }
     ]
   },
   "summary": {
@@ -162,7 +200,26 @@ The `render-report.js` script consumes a single JSON file with this shape. Build
         {
           "id": "express",
           "name": "express@4.17.1",
-          "findings": [ /* one per CVE */ ]
+          "findings": [
+            {
+              "id": "trivy-CVE-2023-34362-express",
+              "title": "CVE-2023-34362 in express@4.17.1",
+              "severity": "critical",
+              "source": "Trivy (vuln)",
+              "evidence": "Vulnerable version detected in package-lock.json",
+              "cveEnrichment": {
+                "cveId": "CVE-2023-34362",
+                "cvss": { "baseScore": 9.8, "baseSeverity": "CRITICAL" },
+                "epss": { "epss": 0.955, "percentile": 0.998 },
+                "kev": { "listed": true, "dateAdded": "2023-06-02", "dueDate": "2023-06-23" }
+              },
+              "remediation": {
+                "description": "Upgrade express to a patched version.",
+                "delegateTo": "/manage-code-scan",
+                "appliedStatus": "open"
+              }
+            }
+          ]
         }
       ]
     }
@@ -186,12 +243,18 @@ The `render-report.js` script consumes a single JSON file with this shape. Build
 ```
 
 Key integrity rules for the JSON:
-- `metadata.concerns[]` names every concern the user picked in Phase 2 (plain technical names — `"OWASP Top 10"`, `"CWE Top 25"`, `"OWASP ASVS"`, `"CVE / SCA"`, `"License audit"`, `"Bring-your-own"`). When the user picks Bypass alone, this is an empty array and `concerns[]` below is also empty; only the posture-snapshot-sourced `permissionsAudit` section renders.
+- `metadata.concerns[]` names every concern the user picked in Phase 3 (plain technical names — `"OWASP Top 10"`, `"CWE Top 25"`, `"OWASP ASVS"`, `"CVE / SCA"`, `"License audit"`, `"Bring-your-own"`). When the user picks Bypass alone, this is an empty array and `concerns[]` below is also empty; only the posture-snapshot-sourced `permissionsAudit` section renders.
+- `metadata.domain.key` is one of the eight catalog keys from `${CLAUDE_PLUGIN_ROOT}/references/domain-attack-profiles.md` (`finance` / `healthcare` / `retail` / `government` / `education` / `b2b_saas` / `nonprofit` / `general`). Set in Phase 2 (Detect site domain) and confirmed by the user. `metadata.regulatoryFrame` is the matching profile's `regulatory_frame` string or null when none applies.
+- `metadata.headline.kind` is `"pass"` when global critical+high severity totals are zero, otherwise `"failure"`. The `text` is the domain profile's `pass_emphasis` or `failure_emphasis` snippet verbatim — no hardcoded numbers, no named victims.
+- `metadata.confidenceMessages[]` is one entry per scan family that produced zero findings — `id` is the `CM-*` template id from `${CLAUDE_PLUGIN_ROOT}/references/threat-context.md`. Empty array when no clean clusters apply.
+- `metadata.tradeoffs[]` carries at least one caveat from `threat-context.md` → **Tradeoffs to disclose**.
+- `metadata.regulatoryCoverage[]` is built in Phase 6 by walking the chosen domain's `regulatory_frame` token list and looking up automatable controls in `${CLAUDE_PLUGIN_ROOT}/references/regulatory-controls.md`. Each entry has `{ standard, controlId, controlName, status, checkSource, findingsRefs[] }`. `status` is one of `"covered"` (the listed `checkSource` ran), `"not-applicable"` (control is automatable but the relevant scan was not run this session), or `"manual-only"` (control is process-level and outside the skill's scope). `findingsRefs[]` lists the `id` of any concerns/categories findings whose `source` matches the `checkSource`, so the renderer can deep-link to evidence. When `regulatory_frame` is empty (e.g., `general` domain), this is an empty array.
 - `concerns[]` has exactly one entry per name in `metadata.concerns`, in the same order.
 - `concerns[].categories[].id` follows the concern-specific convention from [Concern → report grouping](#concern--report-grouping): `A01`–`A10` for OWASP Top 10; `CWE-NNN` for CWE Top 25; `V2.1`-style for ASVS; package name for CVE / SCA; license class for licenses; checklist-item slug for BYO.
+- `concerns[].categories[].findings[].cveEnrichment` is populated only when the finding carries a CVE id and the live fetches succeeded in Phase 6. Shape: `{ cveId, cvss?: { baseScore, baseSeverity }, epss?: { epss, percentile }, kev?: { listed, dateAdded?, dueDate? } }`. Each sub-object is independent — partial enrichment is allowed when one source returns 429 / errored.
 - `summary.byConcern` is keyed by the same names as `metadata.concerns[]`; per-concern severity tallies must reconcile with the global `summary.bySeverity`.
-- `remediation.appliedStatus` transitions `open → fixed | skipped | deferred` as Phase 6 proceeds.
-- `remediation.beforeValue` / `afterValue` are populated only when Phase 6 actually applies a change.
+- `remediation.appliedStatus` transitions `open → fixed | skipped | deferred` as Phase 7 proceeds.
+- `remediation.beforeValue` / `afterValue` are populated only when Phase 7 actually applies a change.
 - `permissionsAudit.findings[]` is a normalized array of audit-permissions findings — each carries a unified `severity` (`critical` / `high` / `medium` / `passing`), `title`, `evidence`, and `owner` (typically `table-permissions-architect`). How these findings render is concern-set-dependent:
   - **When "OWASP Top 10" is among the selected concerns** — the meta-skill MERGES `permissionsAudit.findings[]` into `concerns[name="OWASP Top 10"].categories[id="A01"].findings` before invoking `render-report.js`, so they render inline with every other A01 finding. The standalone Table Permissions section becomes a deep-link back to `docs/permissions-audit.html` for full evidence.
   - **Otherwise** — audit-permissions findings do not map cleanly into the other concerns' groupings, so the standalone Table Permissions section renders with the 4-stat grid (Critical / High / Medium / Passing) and a prominent "Full evidence: docs/permissions-audit.html" link at the top.
@@ -201,11 +264,11 @@ Key integrity rules for the JSON:
 
 Per the plugin's established pattern, the meta-skill must integrate with — not duplicate — `audit-permissions`:
 
-1. **Invoke `/audit-permissions`** during Phase 3 and wait for it to complete. Its output is the file at `docs/permissions-audit.html`.
+1. **Invoke `/audit-permissions`** during Phase 4 and wait for it to complete. Its output is the file at `docs/permissions-audit.html`.
 2. **Parse** that output (or its intermediate JSON if captured) to build `permissionsAudit.findings[]` in the unified findings JSON — each finding carries a normalized `severity` (unified scheme), `title`, `evidence`, and `owner` (`table-permissions-architect`). Preserve the original severity counts in `permissionsAudit.summary`.
 3. **Merge when OWASP Top 10 is a selected concern; otherwise standalone.** When `metadata.concerns` includes `"OWASP Top 10"`, the meta-skill merges `permissionsAudit.findings[]` into `concerns[name="OWASP Top 10"].categories[id="A01"].findings` BEFORE invoking `render-report.js`, so they render inline with every other A01 finding under the unified severity scheme. The standalone Table Permissions section in that case is a deep-link back to `docs/permissions-audit.html`. When OWASP Top 10 is NOT among the selected concerns (e.g., the user picked CWE Top 25 alone, or CVE + License), the findings do not map cleanly into those concerns' categories, so the standalone Table Permissions section renders with the 4-stat grid and the "Full evidence: docs/permissions-audit.html" link at the top.
 4. **Do not** re-render the full permission-audit findings inline — the original report is the deep-dive; the unified report shows the merged / standalone summary.
-5. **Preserve delegation** — remediation of a permission finding in Phase 6 invokes `/audit-permissions`, which in turn delegates fixes to the `table-permissions-architect` agent. The meta-skill does not write permission YAML directly.
+5. **Preserve delegation** — remediation of a permission finding in Phase 7 invokes `/audit-permissions`, which in turn delegates fixes to the `table-permissions-architect` agent. The meta-skill does not write permission YAML directly.
 
 ## Posture snapshot — what each read returns
 
@@ -221,18 +284,18 @@ Per the plugin's established pattern, the meta-skill must integrate with — not
 | `scan.score` | `skills/manage-site-scan/scripts/scan.js --score` | `{ totalRules, succeededRules }` from the latest completed scan |
 | `headers.audit` | `skills/manage-http-headers/scripts/http-headers.js --audit --projectRoot <root>` | Present / missing / forbidden HTTP/* site-settings |
 | `languages` | `skills/manage-code-scan/scripts/detect-languages.js --projectRoot <root>` | Which CodeQL-supported languages are in the project |
-| `webRoles` | Inline file read of `<projectRoot>/.powerpages-site/web-roles/*.webrole.yml` via the plugin-shared `powerpages-config` loader (no child process, no network) | `{ present, count, roles[] }` or `{ error }`. When admin-looking pages have unbound web roles, Phase 4 raises A01 (Medium) with a recommendation to bind the role via `/create-webroles`. |
+| `webRoles` | Inline file read of `<projectRoot>/.powerpages-site/web-roles/*.webrole.yml` via the plugin-shared `powerpages-config` loader (no child process, no network) | `{ present, count, roles[] }` or `{ error }`. When admin-looking pages have unbound web roles, Phase 5 raises A01 (Medium) with a recommendation to bind the role via `/create-webroles`. |
 
 The script fails open — if any individual read fails, its field is populated as `{ "error": "<message>" }` and the others still proceed. The meta-skill surfaces any failed reads in the report so the user sees what information is missing.
 
 ## Bring-your-own checklist — how to scope
 
-When the user picks "bring-your-own checklist" in Phase 2, collect the checklist in one of two ways:
+When the user picks "bring-your-own checklist" in Phase 3, collect the checklist in one of two ways:
 
 - **File pointer** — user names a path (`.md`, `.txt`, `.yml`); read the file and parse each line / bullet / YAML entry as one checklist item.
 - **Inline paste** — user pastes the checklist into the conversation; treat each line as one item.
 
-For each checklist item, in Phase 4:
+For each checklist item, in Phase 5:
 
 1. Decide which security area's output is the right evidence source.
 2. Grade the item Critical / High / Medium / Passing based on what that area reports.

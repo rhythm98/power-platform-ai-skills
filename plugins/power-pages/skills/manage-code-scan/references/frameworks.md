@@ -17,7 +17,7 @@ Single consolidated reference — the security frameworks this skill supports, w
 
 ## Supported frameworks → recommended tool
 
-Phase 2 of the skill asks the user which framework to assess against. Phase 3 then picks the tool based on the framework. The table below captures that mapping.
+Phase 3 of the skill asks the user which framework to assess against. Phase 4 then picks the tool based on the framework. The table below captures that mapping.
 
 | Framework | Primary tool | Alternatives | Why this pairing |
 |---|---|---|---|
@@ -205,7 +205,7 @@ node "${CLAUDE_PLUGIN_ROOT}/skills/manage-code-scan/scripts/parse-sarif.js" \
 }
 ```
 
-Tags from each tool (CWE from CodeQL, OWASP + CWE from Semgrep, CVE IDs and license classes from Trivy) are surfaced verbatim. The skill interprets per-tool in Phase 6 without a cross-taxonomy mapping.
+Tags from each tool (CWE from CodeQL, OWASP + CWE from Semgrep, CVE IDs and license classes from Trivy) are surfaced verbatim. The skill interprets per-tool in Phase 7 without a cross-taxonomy mapping.
 
 ## Shared exit codes
 
