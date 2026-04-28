@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
-// analyze-code-scan-check.js — Claude Code UserPromptSubmit hook.
+// code-scan-check.js — Claude Code UserPromptSubmit hook.
 //
-// Req doc §8.4 requires the analyze-code skill to register a post-scan
+// Req doc §8.4 requires the manage-code-scan skill to register a post-scan
 // hook that "re-enters the session when the scan completes". Claude Code
 // hooks fire on Claude Code events (prompt submit, tool use, session
 // start), not on external process completion, so the closest
@@ -21,7 +21,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-// The analyze-code skill's `run-codeql.js` writes phase markers here
+// The manage-code-scan skill's `run-codeql.js` writes phase markers here
 // by default. The skill's SKILL.md recommends this path for --dbPath,
 // so this hook polls the same location.
 const DB_DIR_NAME = '.codeql-db';
@@ -50,12 +50,12 @@ function main() {
   }
 
   process.stdout.write(
-    '[analyze-code] A background CodeQL scan started by /analyze-code has ' +
+    '[manage-code-scan] A background CodeQL scan started by /manage-code-scan has ' +
     'completed in this project.\n' +
     `Result summary from ${path.join(DB_DIR_NAME, DONE_MARKER)}:\n${doneData}\n` +
-    'Run `node "${CLAUDE_PLUGIN_ROOT}/skills/analyze-code/scripts/parse-sarif.js" ' +
+    'Run `node "${CLAUDE_PLUGIN_ROOT}/skills/manage-code-scan/scripts/parse-sarif.js" ' +
     '--sarif <sarifOut-path-from-above>` to get the structured findings ' +
-    'summary — or re-invoke /analyze-code to resume the workflow.\n',
+    'summary — or re-invoke /manage-code-scan to resume the workflow.\n',
   );
 
   // Best effort — create the notified marker so this only surfaces once.

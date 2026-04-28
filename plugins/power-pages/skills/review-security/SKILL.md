@@ -37,13 +37,13 @@ Every change is one delegated invocation behind explicit user approval — no ba
 
 ## Gotchas
 
-- **Concern-driven, not tool-driven.** OWASP Top 10 / CWE Top 25 / ASVS are *views* the user picks — they describe how findings are grouped in the report, not which tool to run. `manage-security-scan` (ZAP-based dynamic scan) is a tool that covers *a subset* of those views. Running ZAP alone is not a code-security review. Known ZAP gaps include design-time intent (table-permission misuse) and network-level checks — cover those via `/audit-permissions` and the posture snapshot.
+- **Concern-driven, not tool-driven.** OWASP Top 10 / CWE Top 25 / ASVS are *views* the user picks — they describe how findings are grouped in the report, not which tool to run. `manage-site-scan` (ZAP-based dynamic scan) is a tool that covers *a subset* of those views. Running ZAP alone is not a code-security review. Known ZAP gaps include design-time intent (table-permission misuse) and network-level checks — cover those via `/audit-permissions` and the posture snapshot.
 - **"Site code" view is single-select.** CWE Top 25, OWASP Top 10, and OWASP ASVS drive the same scan (Semgrep, optionally ZAP) and only differ in grouping. Phase 2 Question 1 MUST be a single-select — presenting them in a multi-select would invite a pick that regroups the same findings twice. CWE Top 25 is the pre-selected default because it has the broadest coverage of the three (the industry Top 25 subsumes most of the OWASP Top 10 classes). Do NOT fold CVE, license, or BYO into Question 1 — those are separate additive concerns handled by Question 2's multi-select.
 - **Delegate table-permission audits; do not reimplement them.** `/audit-permissions` already produces an HTML report at `docs/permissions-audit.html` with severity-grouped findings and delegates fixes to the `table-permissions-architect` agent. This skill INCLUDES those findings in the unified report and keeps a link back to the existing `permissions-audit.html` for deep-dive evidence. Do NOT parse permission YAML or re-query Dataverse from here.
 - **Auth / role remediations go through their own skills.** When the review surfaces an auth issue, the fix invokes `/setup-auth`. Role-based access fixes invoke `/create-webroles`. These skills have their own approval flows — do not bypass them with direct Dataverse writes.
-- **Long-running security checks do NOT block.** `/manage-security-scan --deep` and `/analyze-code` SAST scans run in the background. Kick them off in Phase 3 as soon as the user has picked them in Phase 2, and let them run while the rest of the review proceeds. The HTML report shows partial results immediately; deeper findings append when the scans complete.
+- **Long-running security checks do NOT block.** `/manage-site-scan --deep` and `/manage-code-scan` SAST scans run in the background. Kick them off in Phase 3 as soon as the user has picked them in Phase 2, and let them run while the rest of the review proceeds. The HTML report shows partial results immediately; deeper findings append when the scans complete.
 - **Bypass-all must be explicit and documented.** Bypass is derived from the Phase 2 answers — it is NOT a concern row. If Question 1 was "Skip the site-code scan" AND Question 2 had zero ticks, surface the concrete trade-off (no code-scan findings, no dependency CVE findings, no license flags — only the posture snapshot survives; see Phase 2 for the exact disclosure text) and confirm before proceeding. Accept the bypass if the user confirms, and note it in the report's "Concerns" metadata (which will be an empty list) so the gap is visible to later readers.
-- **Cross-cloud runtime sources.** When proposing CSP remediations in Phase 6, remember `/manage-security-headers` needs the cloud-specific `content.powerapps.*` host — never propose a remediation that lists all four clouds' hosts together. Delegate to `/manage-security-headers` which handles this.
+- **Cross-cloud runtime sources.** When proposing CSP remediations in Phase 6, remember `/manage-http-headers` needs the cloud-specific `content.powerapps.*` host — never propose a remediation that lists all four clouds' hosts together. Delegate to `/manage-http-headers` which handles this.
 - **Per-change approval is mandatory.** Phase 6 pauses with `AskUserQuestion` before every remediation. The user can accept, skip, or defer each finding individually — never batch-approve.
 
 ## Workflow
@@ -98,7 +98,7 @@ Do NOT add a "None of the above" option to Question 2 — submitting with zero t
 
 > **Skipping every automated check is not recommended.** The review will still perform these fast posture checks:
 > - Web Application Firewall status + custom rule audit
-> - HTTP security-header configuration (CSP, CORS, SameSite, X-Frame-Options) via `/manage-security-headers --audit`
+> - HTTP header configuration (CSP, CORS, SameSite, X-Frame-Options) via `/manage-http-headers --audit`
 > - Table permissions (via `/audit-permissions`)
 > - Web roles + project language detection
 >
@@ -116,7 +116,7 @@ Only ask this question if Question 1 was NOT "Skip the site-code scan". Skip it 
 | Option | Meaning | Default |
 |---|---|---|
 | Thorough — include the deep dynamic scan | Runs the ZAP deep dynamic scan against the live site in addition to the static code scan. Catches injection, SSRF, TLS misconfig, and similar classes that static analysis alone cannot see. Takes up to ~1 hour and runs in the background — the rest of the review proceeds without waiting. | ✅ Pre-selected |
-| Fast only — skip the deep dynamic scan | Runs the static code scan only (~5–15 min). Leaves dynamic findings out of the report; the user can run them later with `/manage-security-scan --deep`. | — |
+| Fast only — skip the deep dynamic scan | Runs the static code scan only (~5–15 min). Leaves dynamic findings out of the report; the user can run them later with `/manage-site-scan --deep`. | — |
 
 **Record the selection** — normalize Q1 + Q2 answers into a `concerns` array (e.g., `["CWE Top 25", "CVE / SCA", "License audit"]`; empty array when the user bypassed everything) and Q3 into a `deepScan` boolean. The Q1 answer contributes at most one concern name ("CWE Top 25", "OWASP Top 10", "OWASP ASVS", or nothing when "Skip" was picked); each Q2 tick contributes one concern name. Phase 3 uses the concerns list to decide which scans to kick off; Phase 4 organizes findings with one bucket per concern; Phase 5 renders one section per concern in the unified HTML report. The mapping from each concern to its scan tools and its report-grouping convention is in `references/orchestration.md` → "Concern → scan tools" and "Concern → report grouping".
 
@@ -134,7 +134,7 @@ The output is a single JSON blob with:
 - Site name + admin-delegation group id (from `website.js`)
 - WAF status + current rules (from `waf.js --status` / `--rules`)
 - Deep-scan state + latest report summary + score (from `scan.js --ongoing` / `--report` / `--score`)
-- HTTP/* site-settings audit (from `security-headers.js --audit`)
+- HTTP/* site-settings audit (from `http-headers.js --audit`)
 - Detected project languages (from `detect-languages.js`)
 - Local web-role definitions from `.powerpages-site/web-roles/*.webrole.yml` (read inline by the snapshot script). Shape: `{ present, count, roles[] }` or `{ error }` when the directory / files can't be read. Phase 4 uses this to flag OWASP A01 when the site lists web roles that are never bound to administratively-sensitive pages.
 
@@ -146,12 +146,12 @@ This produces `docs/permissions-audit.html`. Wait for that skill to complete bef
 
 **Kick off every scan implied by the concerns the user picked in Phase 2, before proceeding to Phase 4.** Do NOT run any scan for a concern the user did not pick. The concern-to-scan mapping in `references/orchestration.md` → "Concern → scan tools" is authoritative; the typical invocations are:
 
-- ZAP deep dynamic scan (only if `deepScan=true` AND at least one "Site code" concern is picked) → `node "${CLAUDE_PLUGIN_ROOT}/skills/manage-security-scan/scripts/scan.js" --deep --portalId <guid>` (returns immediately; runs server-side)
+- ZAP deep dynamic scan (only if `deepScan=true` AND at least one "Site code" concern is picked) → `node "${CLAUDE_PLUGIN_ROOT}/skills/manage-site-scan/scripts/scan.js" --deep --portalId <guid>` (returns immediately; runs server-side)
 - Semgrep SAST (any "Site code" concern) → `semgrep scan --config <ruleset> --sarif --output <sarif-path> <project-root>` via `Bash run_in_background: true`. Pick the ruleset that matches the selected code-scan concern (`p/cwe-top-25`, `p/owasp-top-ten`, or `p/owasp-asvs`).
-- CodeQL SAST (alternative to Semgrep for CWE / OWASP when the tool is available) → `node "${CLAUDE_PLUGIN_ROOT}/skills/analyze-code/scripts/run-codeql.js" --projectRoot <path> --language javascript-typescript --querySuite <suite> --sarifOut <sarif-path>` via `Bash run_in_background: true`
+- CodeQL SAST (alternative to Semgrep for CWE / OWASP when the tool is available) → `node "${CLAUDE_PLUGIN_ROOT}/skills/manage-code-scan/scripts/run-codeql.js" --projectRoot <path> --language javascript-typescript --querySuite <suite> --sarifOut <sarif-path>` via `Bash run_in_background: true`
 - Trivy (CVE / SCA and / or License concerns) → when both are picked, run a single pass: `trivy fs --scanners vuln,license --format json --output <path> <project-root>`. When only one is picked, pass just that scanner. Usually sub-minute; can run synchronously.
 
-Ruleset / query-suite defaults follow the selected code-scan concern — see `skills/analyze-code/SKILL.md` Phase 4 (ruleset table) for the exact mapping. The scan completion hook at `plugins/power-pages/hooks/hooks.json` will surface results when the long-running scans finish; pick them up and fold into the report during Phase 5 or Phase 7.
+Ruleset / query-suite defaults follow the selected code-scan concern — see `skills/manage-code-scan/SKILL.md` Phase 4 (ruleset table) for the exact mapping. The scan completion hook at `plugins/power-pages/hooks/hooks.json` will surface results when the long-running scans finish; pick them up and fold into the report during Phase 5 or Phase 7.
 
 ### Phase 4 — Audit and analyze
 
@@ -208,10 +208,10 @@ Delegation map (full version in `references/orchestration.md`):
 | Authentication / identity provider / anti-forgery token | `/setup-auth` | Configures identity providers, login/logout, token handling |
 | Web-role / role-based access | `/create-webroles` | Defines and assigns web roles |
 | Table permissions | `/audit-permissions` | Runs `table-permissions-architect` agent for fixes |
-| CSP / CORS / SameSite / other HTTP headers | `/manage-security-headers` | Writes `HTTP/<Header>` site-setting YAML |
+| CSP / CORS / SameSite / other HTTP headers | `/manage-http-headers` | Writes `HTTP/<Header>` site-setting YAML |
 | WAF enable/disable/rules | `/manage-web-application-firewall` | Admin-layer WAF changes |
-| Dynamic scan (verification after hardening) | `/manage-security-scan` | Quick sync scan or deep async scan |
-| Static-code finding (dependency CVE, SAST, dependency license) | `/analyze-code` | Framework-driven SAST / SCA / license audit |
+| Dynamic scan (verification after hardening) | `/manage-site-scan` | Quick sync scan or deep async scan |
+| Static-code finding (dependency CVE, SAST, dependency license) | `/manage-code-scan` | Framework-driven SAST / SCA / license audit |
 | Deploy any Dataverse-bound change | `/deploy-site` | Push the YAML / site-setting changes |
 
 After each successful remediation, update the `status` field in the findings JSON and re-render the HTML report so the "fixed" markers appear. Capture before / after state on anything that touched Dataverse — the report's `remediation` block shows both.

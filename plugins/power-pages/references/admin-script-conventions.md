@@ -18,7 +18,7 @@ Shared conventions for the `scripts/lib/admin-api.js` transport layer and the pe
 Two sub-skills of the `review-security` family depend on this command layer:
 
 - `manage-web-application-firewall`
-- `manage-security-scan`
+- `manage-site-scan`
 
 Each of those skills ships `scripts/<name>.js` commands plus a `references/commands.md` that documents exactly what each command accepts and returns. Read this file for cross-skill conventions; read the per-skill `commands.md` for command-level detail.
 

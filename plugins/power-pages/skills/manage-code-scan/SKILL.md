@@ -1,5 +1,5 @@
 ---
-name: analyze-code
+name: manage-code-scan
 description: >-
   Runs static security analysis on a Power Pages site's source code
   against a chosen framework — CWE / CWE Top 25, OWASP Top 10 (SAST
@@ -11,7 +11,7 @@ description: >-
   CodeQL, Trivy, CWE, CVE, OWASP scan of source code, or ASVS —
   even if they do not use the phrase "static analysis". SAST scans
   are long-running and run in the background. Out of scope:
-  dynamic / runtime scanning (use /manage-security-scan),
+  dynamic / runtime scanning (use /manage-site-scan),
   infrastructure-as-code, cloud compliance, mobile, LLM,
   threat modeling, adversary emulation.
 user-invocable: true
@@ -52,7 +52,7 @@ At the start of Phase 1, create one task per phase with `TaskCreate`. Mark `in_p
 
 Run the tool detection:
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/analyze-code/scripts/check-tools.js"
+node "${CLAUDE_PLUGIN_ROOT}/skills/manage-code-scan/scripts/check-tools.js"
 ```
 
 The output lists every supported CLI with `present: true|false`, the version if present, and an install pointer if absent. Keep the output — Phase 3 uses it to propose a tool the user actually has.
@@ -66,7 +66,7 @@ Use `AskUserQuestion` to ask which framework to assess against. The supported op
 | Framework | What it covers |
 |---|---|
 | CWE / CWE Top 25 (SAST) | Source-code weaknesses tagged with CWE IDs; the CWE Top 25 list specifically flags the most critical classes. |
-| OWASP Top 10 (SAST aspect) | Source-code findings tagged with OWASP Top 10 categories. For the DAST aspect — runtime vulnerabilities — delegate to `/manage-security-scan`. |
+| OWASP Top 10 (SAST aspect) | Source-code findings tagged with OWASP Top 10 categories. For the DAST aspect — runtime vulnerabilities — delegate to `/manage-site-scan`. |
 | OWASP ASVS | Findings tagged against OWASP Application Security Verification Standard control sections. |
 | CVE / dependency vulnerabilities (SCA) | Vulnerabilities in third-party dependencies, tagged by CVE ID and severity. Trivy also surfaces packages whose upstream has reached end-of-life ("deprecated" / EOL) alongside the CVEs. |
 | Dependency license audit | Licenses declared by each third-party dependency, flagging copyleft (GPL / AGPL / LGPL) and "unknown / unclassified" entries so the user can confirm the site's distribution model permits them. Important for non-open-source / commercial sites. |
@@ -107,7 +107,7 @@ Gather the scan configuration. Show the user what you propose; get explicit appr
 | Language (CodeQL only) | `javascript-typescript` — this skill scopes to JS/TS | N/A — this skill does not scan other languages. If `detect-languages.js` shows significant non-JS/TS content, flag it to the user but do not scan it here |
 | Ruleset / query suite | See framework → ruleset table below | User explicitly requests a different ruleset |
 | Excludes | Tool defaults plus common build outputs (`dist`, `build`, `out`, `.next`, minified files, vendored `lib/`) | Add any project-specific dirs you spot |
-| Output path | `.analyze-code-output.sarif` at the project root | User wants a dated / named output file |
+| Output path | `.manage-code-scan-output.sarif` at the project root | User wants a dated / named output file |
 
 **Ruleset / query-suite map:**
 
@@ -124,7 +124,7 @@ Gather the scan configuration. Show the user what you propose; get explicit appr
 
 For the language detection step (CodeQL path), run:
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/analyze-code/scripts/detect-languages.js" --projectRoot "<project-root>"
+node "${CLAUDE_PLUGIN_ROOT}/skills/manage-code-scan/scripts/detect-languages.js" --projectRoot "<project-root>"
 ```
 
 ### Phase 5 — Execute
@@ -143,7 +143,7 @@ semgrep scan \
 
 CodeQL — use the wrapper, which handles `database create` + `database analyze`:
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/analyze-code/scripts/run-codeql.js" \
+node "${CLAUDE_PLUGIN_ROOT}/skills/manage-code-scan/scripts/run-codeql.js" \
   --projectRoot "<project-root>" \
   --language javascript-typescript \
   --querySuite "codeql/javascript-queries:codeql-suites/javascript-security-extended.qls" \
@@ -153,10 +153,10 @@ node "${CLAUDE_PLUGIN_ROOT}/skills/analyze-code/scripts/run-codeql.js" \
 
 Invoke via `Bash` with `run_in_background: true`. Tell the user the scan is running, estimate the duration (minutes for small projects, longer for monorepos), and give them the paired parse command for when it completes:
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/analyze-code/scripts/parse-sarif.js" --sarif "<sarif-path>"
+node "${CLAUDE_PLUGIN_ROOT}/skills/manage-code-scan/scripts/parse-sarif.js" --sarif "<sarif-path>"
 ```
 
-A registered `UserPromptSubmit` hook (`hooks/analyze-code-scan-check.js`) watches for the `.codeql-db/.state-done` marker that `run-codeql.js` writes on completion. When the user returns to the session with any new prompt, the hook surfaces a one-time note to Claude reminding it the scan is done and pointing at the paired parse command — so you do not need to poll manually.
+A registered `UserPromptSubmit` hook (`hooks/code-scan-check.js`) watches for the `.codeql-db/.state-done` marker that `run-codeql.js` writes on completion. When the user returns to the session with any new prompt, the hook surfaces a one-time note to Claude reminding it the scan is done and pointing at the paired parse command — so you do not need to poll manually.
 
 Then jump to Phase 6 with what you have — the parse command is the follow-up.
 
@@ -230,7 +230,7 @@ Summarize the session:
 
 > Reference: `${CLAUDE_PLUGIN_ROOT}/references/skill-tracking-reference.md`
 
-Follow the skill-tracking instructions in the reference to record this skill's usage. Use `--skillName "AnalyzeCode"`.
+Follow the skill-tracking instructions in the reference to record this skill's usage. Use `--skillName "ManageCodeScan"`.
 
 Close by asking: "Anything else on code analysis, or done?" If the user wants a broader security review, suggest `/review-security`.
 

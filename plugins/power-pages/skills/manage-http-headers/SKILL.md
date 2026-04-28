@@ -1,5 +1,5 @@
 ---
-name: manage-security-headers
+name: manage-http-headers
 description: >-
   Manages HTTP security headers for a Power Pages site — Content Security
   Policy (CSP) including nonce handling and report-only mode, CORS
@@ -38,7 +38,7 @@ Configure HTTP security headers for a Power Pages site by writing site-setting Y
 ## Gotchas
 
 - **HSTS and Cache-Control are Power-Pages-managed.** Writing `HTTP/Strict-Transport-Security` is rejected with exit code `3`; do not work around it.
-- **No value validation.** The runtime passes header values through verbatim — malformed CSP or CORS strings silently produce broken headers. Use `--dry-run` on `security-headers.js` to catch local YAML / name issues, but the value itself is the author's responsibility.
+- **No value validation.** The runtime passes header values through verbatim — malformed CSP or CORS strings silently produce broken headers. Use `--dry-run` on `http-headers.js` to catch local YAML / name issues, but the value itself is the author's responsibility.
 - **CSP is pass-through, not merged.** The runtime does NOT add Power-Pages-runtime sources automatically to your CSP. If your policy omits the runtime's `content.powerapps.*` sources, runtime resources fail to load and parts of the site will not render. Use `scan-external-urls.js` to get the full allowlist, including the runtime dependencies.
 - **Use the `'nonce'` keyword in `script-src`, not `'unsafe-inline'`, for inline scripts.** The runtime replaces `'nonce'` with a per-request random value and auto-injects hashes for inline event handlers. Removing `'nonce'` from the directive silently disables that mechanism.
 - **`Inject-unsafe-eval` is a site-setting, not a header.** Its name is `HTTP/Content-Security-Policy/Inject-unsafe-eval`, value `true` or `false` (default true). When true and `'nonce'` is present, the runtime auto-injects `'unsafe-eval'` into `script-src`. Set to `false` only if you are sure your site works without it — many Power-Pages-runtime components require it.
@@ -62,7 +62,7 @@ At the start of Phase 1, create one task per phase with `TaskCreate`. Mark `in_p
 
 Run:
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/manage-security-headers/scripts/security-headers.js" \
+node "${CLAUDE_PLUGIN_ROOT}/skills/manage-http-headers/scripts/http-headers.js" \
   --audit --projectRoot "<project-root>"
 ```
 
@@ -89,7 +89,7 @@ Use `AskUserQuestion` to confirm intent. The skill supports five kinds of change
 **For any CSP change, run the allowlist discovery first.** The Power Pages runtime does NOT merge a baseline with your CSP — your directive must include both the site's own external sources AND the runtime's required sources, or runtime resources fail to load and parts of the site will not render. Run:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/manage-security-headers/scripts/scan-external-urls.js" \
+node "${CLAUDE_PLUGIN_ROOT}/skills/manage-http-headers/scripts/scan-external-urls.js" \
   --projectRoot "<project-root>"
 ```
 
@@ -110,7 +110,7 @@ Reference: `references/headers.md` for command shapes, exit codes, and header-sp
 
 **Writing a header:**
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/manage-security-headers/scripts/security-headers.js" \
+node "${CLAUDE_PLUGIN_ROOT}/skills/manage-http-headers/scripts/http-headers.js" \
   --write --projectRoot "<project-root>" \
   --name "HTTP/<Header-Name>" \
   --value "<header-value>" \
@@ -154,7 +154,7 @@ If a verify fails, show the discrepancy and stop — do not iterate without the 
 
 > Reference: `${CLAUDE_PLUGIN_ROOT}/references/skill-tracking-reference.md`
 
-Follow the skill-tracking instructions in the reference to record this skill's usage. Use `--skillName "ManageSecurityHeaders"`.
+Follow the skill-tracking instructions in the reference to record this skill's usage. Use `--skillName "ManageHttpHeaders"`.
 
 Close by asking: "Anything else on headers, or done?" If the user wants a broader security review, suggest `/review-security`.
 

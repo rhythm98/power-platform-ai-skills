@@ -36,7 +36,7 @@ Runs a synchronous set of built-in diagnostic checks against the site. Returns a
 **Command**
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/manage-security-scan/scripts/scan.js" \
+node "${CLAUDE_PLUGIN_ROOT}/skills/manage-site-scan/scripts/scan.js" \
   --quick \
   --portalId <guid> \
   --lcid <integer>
@@ -78,7 +78,7 @@ The HTTP call is a `POST` with no request body. The service also accepts an opti
 **Command**
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/manage-security-scan/scripts/scan.js" \
+node "${CLAUDE_PLUGIN_ROOT}/skills/manage-site-scan/scripts/scan.js" \
   --deep \
   --portalId <guid> \
   [--dry-run]
@@ -128,7 +128,7 @@ Returns a boolean — whether a deep scan is currently running for the site.
 **Command**
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/manage-security-scan/scripts/scan.js" \
+node "${CLAUDE_PLUGIN_ROOT}/skills/manage-site-scan/scripts/scan.js" \
   --ongoing \
   --portalId <guid>
 ```
@@ -165,7 +165,7 @@ Returns the structured report from the most recently completed deep scan.
 **Command**
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/manage-security-scan/scripts/scan.js" \
+node "${CLAUDE_PLUGIN_ROOT}/skills/manage-site-scan/scripts/scan.js" \
   --report \
   --portalId <guid>
 ```
@@ -194,7 +194,7 @@ Returns the raw score pair from the latest completed deep scan.
 **Command**
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/manage-security-scan/scripts/scan.js" \
+node "${CLAUDE_PLUGIN_ROOT}/skills/manage-site-scan/scripts/scan.js" \
   --score \
   --portalId <guid>
 ```

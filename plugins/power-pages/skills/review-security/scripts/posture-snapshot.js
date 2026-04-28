@@ -138,15 +138,15 @@ function wafScriptPath() {
 }
 
 function scanScriptPath() {
-  return path.join(PLUGIN_ROOT, 'skills', 'manage-security-scan', 'scripts', 'scan.js');
+  return path.join(PLUGIN_ROOT, 'skills', 'manage-site-scan', 'scripts', 'scan.js');
 }
 
 function headersScriptPath() {
-  return path.join(PLUGIN_ROOT, 'skills', 'manage-security-headers', 'scripts', 'security-headers.js');
+  return path.join(PLUGIN_ROOT, 'skills', 'manage-http-headers', 'scripts', 'http-headers.js');
 }
 
 function languagesScriptPath() {
-  return path.join(PLUGIN_ROOT, 'skills', 'analyze-code', 'scripts', 'detect-languages.js');
+  return path.join(PLUGIN_ROOT, 'skills', 'manage-code-scan', 'scripts', 'detect-languages.js');
 }
 
 /**

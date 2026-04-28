@@ -1,6 +1,6 @@
 # Security headers — reference
 
-Single consolidated reference for the `manage-security-headers` skill: the header catalogue the Power Pages runtime recognizes, product-specific quirks, command specs for the two bundled scripts, and external-doc pointers.
+Single consolidated reference for the `manage-http-headers` skill: the header catalogue the Power Pages runtime recognizes, product-specific quirks, command specs for the two bundled scripts, and external-doc pointers.
 
 ## Contents
 
@@ -13,7 +13,7 @@ Single consolidated reference for the `manage-security-headers` skill: the heade
 - [SameSite cookies](#samesite-cookies)
 - [Power-Pages-runtime sources a CSP must allow](#power-pages-runtime-sources-a-csp-must-allow)
 - [Deployment and caching](#deployment-and-caching)
-- [Command spec — `security-headers.js`](#command-spec--security-headersjs)
+- [Command spec — `http-headers.js`](#command-spec--http-headersjs)
 - [Command spec — `scan-external-urls.js`](#command-spec--scan-external-urlsjs)
 - [Shared exit codes](#shared-exit-codes)
 
@@ -69,7 +69,7 @@ The Power Pages runtime reads these `HTTP/*` site-settings and emits the corresp
 
 ## Power Pages-managed headers (not settable)
 
-`Strict-Transport-Security` and `Cache-Control` are emitted by the runtime and cannot be overridden. Writing `HTTP/Strict-Transport-Security` is rejected by `security-headers.js` with exit code `3`.
+`Strict-Transport-Security` and `Cache-Control` are emitted by the runtime and cannot be overridden. Writing `HTTP/Strict-Transport-Security` is rejected by `http-headers.js` with exit code `3`.
 
 ## Default behavior when a setting is absent
 
@@ -159,12 +159,12 @@ Header changes land in Dataverse via `/deploy-site`. The site-setting update tri
 
 **Maker-mode requests skip all HTTP/* header emission.** Requests from Power Pages Studio or other detected maker tools bypass the header middleware. Consequence: viewing the site through maker tools will NOT show your headers. Always verify with a fresh browser tab that isn't authenticated as a maker.
 
-## Command spec — `security-headers.js`
+## Command spec — `http-headers.js`
 
 **Audit current site-settings**
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/manage-security-headers/scripts/security-headers.js" \
+node "${CLAUDE_PLUGIN_ROOT}/skills/manage-http-headers/scripts/http-headers.js" \
   --audit \
   --projectRoot "<project-root>"
 ```
@@ -174,7 +174,7 @@ Read-only. Returns JSON: `{ present: [...], missing: [...], forbidden: [...] }`.
 **Write or update a setting**
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/manage-security-headers/scripts/security-headers.js" \
+node "${CLAUDE_PLUGIN_ROOT}/skills/manage-http-headers/scripts/http-headers.js" \
   --write \
   --projectRoot "<project-root>" \
   --name "HTTP/<Header-Name>" \
@@ -188,7 +188,7 @@ Write. Preserves the existing YAML id when updating. Rejects Power Pages-managed
 **Remove a setting**
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/manage-security-headers/scripts/security-headers.js" \
+node "${CLAUDE_PLUGIN_ROOT}/skills/manage-http-headers/scripts/http-headers.js" \
   --remove \
   --projectRoot "<project-root>" \
   --name "HTTP/<Header-Name>" \
@@ -212,7 +212,7 @@ Write (delete). Removing a setting that does not exist is a no-op (exit 0 with `
 Scan the project for external URLs referenced in HTML, CSS, and JavaScript. Produces a structured allowlist keyed by CSP directive plus the cloud-agnostic Power-Pages-runtime dependencies. The cloud-specific `content.powerapps.*` host is intentionally omitted — compose it separately after detecting the site's cloud via `pac auth who` (see [Power-Pages-runtime sources a CSP must allow](#power-pages-runtime-sources-a-csp-must-allow)).
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/manage-security-headers/scripts/scan-external-urls.js" \
+node "${CLAUDE_PLUGIN_ROOT}/skills/manage-http-headers/scripts/scan-external-urls.js" \
   --projectRoot "<project-root>" \
   [--exclude "<comma-separated directory names>"]
 ```
@@ -257,4 +257,4 @@ Both commands use the same exit-code space.
 | `3` | Forbidden header — name is one Power Pages owns (e.g. `HTTP/Strict-Transport-Security`). Do not retry or work around. |
 | `4` | `.powerpages-site/site-settings/` is missing. The project is not a deployed code site yet — run `/deploy-site` first. |
 
-`node security-headers.js --help` and `node scan-external-urls.js --help` print the same exit-code table.
+`node http-headers.js --help` and `node scan-external-urls.js --help` print the same exit-code table.

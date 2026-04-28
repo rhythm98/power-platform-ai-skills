@@ -1,5 +1,5 @@
 ---
-name: manage-security-scan
+name: manage-site-scan
 description: >-
   Runs the Power Pages security scan — triggers a quick synchronous
   diagnostic scan, starts the long-running OWASP-based deep scan against
@@ -70,7 +70,7 @@ At the start of Phase 1, create one task per phase with `TaskCreate`. Mark `in_p
 Before asking the user what they want, check whether a deep scan is currently running:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/manage-security-scan/scripts/scan.js" --ongoing --portalId <guid>
+node "${CLAUDE_PLUGIN_ROOT}/skills/manage-site-scan/scripts/scan.js" --ongoing --portalId <guid>
 ```
 
 The command returns `true` (a scan is running) or `false` (idle). Knowing the state changes Phase 3's options:
@@ -131,11 +131,11 @@ The Phase 5 shape depends on which action ran in Phase 4:
 - Completion signal: email to the site admin + visible in the Power Pages Studio interface under Security → Run scan.
 - Polling command the user or meta-skill can run later to check:
   ```bash
-  node "${CLAUDE_PLUGIN_ROOT}/skills/manage-security-scan/scripts/scan.js" --ongoing --portalId <guid>
+  node "${CLAUDE_PLUGIN_ROOT}/skills/manage-site-scan/scripts/scan.js" --ongoing --portalId <guid>
   ```
 - Fetch command once it completes:
   ```bash
-  node "${CLAUDE_PLUGIN_ROOT}/skills/manage-security-scan/scripts/scan.js" --report --portalId <guid>
+  node "${CLAUDE_PLUGIN_ROOT}/skills/manage-site-scan/scripts/scan.js" --report --portalId <guid>
   ```
 
 After acknowledgment, Phase 5 is done — do NOT spin on `--ongoing` for the full scan duration; it is long enough to exhaust the session.
@@ -154,7 +154,7 @@ Summarize what ran and what the user should do next:
 
 > Reference: `${CLAUDE_PLUGIN_ROOT}/references/skill-tracking-reference.md`
 
-Follow the skill-tracking instructions in the reference to record this skill's usage. Use `--skillName "ManageSecurityScan"`.
+Follow the skill-tracking instructions in the reference to record this skill's usage. Use `--skillName "ManageSiteScan"`.
 
 Close by asking: "Anything else on scanning, or done?" If the user wants a broader security review, suggest `/review-security`.
 

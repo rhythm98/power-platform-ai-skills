@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-// security-headers.js — manage HTTP security header site-settings for a
+// http-headers.js — manage HTTP security header site-settings for a
 // Power Pages code site.
 //
 // HTTP header site-settings are Dataverse site-setting records whose name
@@ -18,10 +18,10 @@
 // All write operations support --dry-run.
 //
 // CLI usage:
-//   node security-headers.js --audit  --projectRoot <path>
-//   node security-headers.js --write  --projectRoot <path> --name HTTP/<Header> --value <v> --description <d> [--dry-run]
-//   node security-headers.js --remove --projectRoot <path> --name HTTP/<Header> [--dry-run]
-//   node security-headers.js --help
+//   node http-headers.js --audit  --projectRoot <path>
+//   node http-headers.js --write  --projectRoot <path> --name HTTP/<Header> --value <v> --description <d> [--dry-run]
+//   node http-headers.js --remove --projectRoot <path> --name HTTP/<Header> [--dry-run]
+//   node http-headers.js --help
 
 const fs = require('node:fs');
 const path = require('node:path');
@@ -88,13 +88,13 @@ const FORBIDDEN_HTTP_HEADER_NAMES = Object.freeze(new Set([
 ]));
 
 const HELP = `Usage:
-  security-headers.js --audit  --projectRoot <path>
-  security-headers.js --write  --projectRoot <path> --name HTTP/<Header> \\
+  http-headers.js --audit  --projectRoot <path>
+  http-headers.js --write  --projectRoot <path> --name HTTP/<Header> \\
                                 --value <value> --description <description> \\
                                 [--dry-run]
-  security-headers.js --remove --projectRoot <path> --name HTTP/<Header> \\
+  http-headers.js --remove --projectRoot <path> --name HTTP/<Header> \\
                                 [--dry-run]
-  security-headers.js --help
+  http-headers.js --help
 
 Manages HTTP security header site-settings (YAML files under
 .powerpages-site/site-settings/). Deployment to Dataverse happens downstream
