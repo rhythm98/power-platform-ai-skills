@@ -110,7 +110,17 @@ html, body { overflow: hidden; background: var(--pp-bg); color: var(--pp-text); 
 @keyframes fadeSlideUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
 .center-stage.complete .main-heading { animation: completePulse 2s ease-in-out infinite alternate; }
 @keyframes completePulse { 0% { filter: brightness(1); } 100% { filter: brightness(1.15); } }
-@media (max-width: 600px) { .main-heading { font-size: 24px; } .progress-container { width: 260px; } .feature-cards { flex-direction: column; align-items: center; } .orbit-system { width: 180px; height: 180px; } }
+.input-banner { position: fixed; top: 24px; right: 24px; z-index: 100; display: flex; align-items: center; gap: 12px; background: linear-gradient(135deg, #FFF4D6 0%, #FFE9B3 100%); border: 1px solid #F5B800; color: #5C3D00; padding: 12px 14px 12px 22px; border-radius: 999px; font-family: 'Outfit', sans-serif; font-size: 14px; font-weight: 500; box-shadow: 0 4px 16px rgba(245, 184, 0, 0.25); max-width: min(360px, calc(100vw - 48px)); animation: bannerEnter 0.4s cubic-bezier(0.22, 1, 0.36, 1); }
+.input-banner[hidden] { display: none; }
+.input-banner-icon { font-size: 18px; animation: bannerPulse 1.5s ease-in-out infinite; flex-shrink: 0; }
+.input-banner-text { line-height: 1.4; flex: 1; min-width: 0; }
+.input-banner-text b { font-weight: 600; display: block; letter-spacing: 0.3px; }
+.input-banner-text small { display: block; font-size: 12px; font-weight: 400; opacity: 0.8; margin-top: 2px; }
+.input-banner-close { width: 24px; height: 24px; border: none; border-radius: 50%; background: rgba(92, 61, 0, 0.12); color: #5C3D00; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; line-height: 1; flex-shrink: 0; transition: background 0.2s ease, transform 0.2s ease; }
+.input-banner-close:hover { background: rgba(92, 61, 0, 0.2); transform: scale(1.05); }
+@keyframes bannerPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.2); } }
+@keyframes bannerEnter { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: translateY(0); } }
+@media (max-width: 600px) { .main-heading { font-size: 24px; } .progress-container { width: 260px; } .feature-cards { flex-direction: column; align-items: center; } .orbit-system { width: 180px; height: 180px; } .input-banner { top: 12px; right: 12px; padding: 10px 12px 10px 16px; font-size: 13px; max-width: calc(100vw - 24px); } }
   `],
   template: `
     <div class="loading-wrapper">
@@ -119,6 +129,15 @@ html, body { overflow: hidden; background: var(--pp-bg); color: var(--pp-text); 
       <div class="scanline"></div>
       <div class="particles" id="particles"></div>
       <div class="connector-lines" id="connectors"></div>
+
+      <div class="input-banner" id="inputBanner" hidden>
+        <span class="input-banner-icon">&#x26A0;&#xFE0F;</span>
+        <div class="input-banner-text">
+          <b>Waiting for your input</b>
+          <small id="inputBannerPrompt">Please check your terminal to respond.</small>
+        </div>
+        <button type="button" class="input-banner-close" id="inputBannerClose" aria-label="Dismiss notification">&times;</button>
+      </div>
 
       <div class="center-stage" id="centerStage">
         <div class="orbit-system">
@@ -173,6 +192,7 @@ html, body { overflow: hidden; background: var(--pp-bg); color: var(--pp-text); 
 export class HomeComponent implements AfterViewInit, OnDestroy {
   private intervals: number[] = []
   private timeouts: number[] = []
+  private inputBannerCloseCleanup: (() => void) | null = null
 
   ngAfterViewInit() {
     const particlesEl = document.getElementById('particles')
@@ -180,6 +200,7 @@ export class HomeComponent implements AfterViewInit, OnDestroy {
     const statusArea = document.getElementById('statusArea')
     const progressLabel = document.getElementById('progressLabel')
     const tipTextEl = document.getElementById('tipText')
+    const inputBannerClose = document.getElementById('inputBannerClose')
 
     // Particles
     const createParticle = () => {
@@ -230,8 +251,21 @@ export class HomeComponent implements AfterViewInit, OnDestroy {
     ]
 
     let currentStatusIndex = 0
+    let liveOverride = false
+    let lastLiveMessage: string | null = null
+    let lastAwaiting = false
+    let lastPrompt: string | null = null
+    let dismissedPrompt: string | null = null
 
-    const showStatus = (index: number) => {
+    const dismissInputBanner = () => {
+      const banner = document.getElementById('inputBanner')
+      dismissedPrompt = lastPrompt || 'Please check your terminal to respond.'
+      if (banner) banner.hidden = true
+    }
+    inputBannerClose?.addEventListener('click', dismissInputBanner)
+    this.inputBannerCloseCleanup = () => inputBannerClose?.removeEventListener('click', dismissInputBanner)
+
+    const renderStatusMessage = (text: string) => {
       if (!statusArea) return
       const existing = statusArea.querySelector('.status-message')
       if (existing) {
@@ -244,15 +278,22 @@ export class HomeComponent implements AfterViewInit, OnDestroy {
       const icon = document.createElement('div')
       icon.classList.add('status-icon', 'working')
       msg.appendChild(icon)
-      const text = document.createElement('span')
-      text.textContent = statuses[index % statuses.length].text
-      msg.appendChild(text)
+      const textEl = document.createElement('span')
+      textEl.textContent = text
+      msg.appendChild(textEl)
       statusArea.appendChild(msg)
       requestAnimationFrame(() => requestAnimationFrame(() => msg.classList.add('active')))
-      if (progressLabel) {
-        const phaseIndex = Math.min(Math.floor((index / statuses.length) * phaseLabels.length), phaseLabels.length - 1)
-        progressLabel.textContent = phaseLabels[phaseIndex]
-      }
+    }
+
+    const updatePhaseLabel = (text: string) => {
+      if (progressLabel) progressLabel.textContent = text
+    }
+
+    const showStatus = (index: number) => {
+      renderStatusMessage(statuses[index % statuses.length].text)
+      if (liveOverride) return
+      const phaseIndex = Math.min(Math.floor((index / statuses.length) * phaseLabels.length), phaseLabels.length - 1)
+      updatePhaseLabel(phaseLabels[phaseIndex])
     }
 
     const advanceStatus = () => {
@@ -265,6 +306,54 @@ export class HomeComponent implements AfterViewInit, OnDestroy {
     }
 
     this.timeouts.push(window.setTimeout(() => advanceStatus(), 2000))
+
+    const pollStatus = async () => {
+      const banner = document.getElementById('inputBanner') as HTMLElement | null
+      const promptEl = document.getElementById('inputBannerPrompt')
+      try {
+        const res = await fetch('/scaffold-status.json?t=' + Date.now(), { cache: 'no-store' })
+        if (!res.ok) throw new Error('no status')
+        const data = await res.json() as { message?: string; awaitingInput?: boolean; inputPrompt?: string }
+        if (data.message) {
+          liveOverride = true
+          if (data.message !== lastLiveMessage) {
+            lastLiveMessage = data.message
+            updatePhaseLabel(data.message)
+          }
+        } else {
+          if (liveOverride) {
+            const phaseIndex = Math.min(Math.floor((currentStatusIndex / statuses.length) * phaseLabels.length), phaseLabels.length - 1)
+            updatePhaseLabel(phaseLabels[phaseIndex])
+          }
+          liveOverride = false
+          lastLiveMessage = null
+        }
+        const awaiting = !!data.awaitingInput
+        const prompt = data.inputPrompt || 'Please check your terminal to respond.'
+        const awaitingChanged = awaiting !== lastAwaiting
+        const promptChanged = prompt !== lastPrompt
+        if (!awaiting) dismissedPrompt = null
+        if (awaitingChanged || promptChanged) {
+          lastAwaiting = awaiting
+          lastPrompt = prompt
+          if (promptEl) promptEl.textContent = prompt
+        }
+        if (banner) banner.hidden = !awaiting || dismissedPrompt === prompt
+      } catch {
+        if (liveOverride) {
+          const phaseIndex = Math.min(Math.floor((currentStatusIndex / statuses.length) * phaseLabels.length), phaseLabels.length - 1)
+          updatePhaseLabel(phaseLabels[phaseIndex])
+        }
+        liveOverride = false
+        lastLiveMessage = null
+        if (!lastAwaiting) {
+          lastPrompt = null
+          if (banner) banner.hidden = true
+        }
+      }
+    }
+    pollStatus()
+    this.intervals.push(window.setInterval(pollStatus, 1500))
 
     // Feature cards
     this.timeouts.push(window.setTimeout(() => {
@@ -302,6 +391,7 @@ export class HomeComponent implements AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy() {
+    this.inputBannerCloseCleanup?.()
     this.intervals.forEach(id => clearInterval(id))
     this.timeouts.forEach(id => clearTimeout(id))
   }
