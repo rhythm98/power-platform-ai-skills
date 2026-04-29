@@ -25,6 +25,22 @@ Test a deployed, activated Power Pages site at runtime. Navigate the site in a b
 - **User-controlled authentication**: Never attempt to log in automatically. Always ask the user to log in via the browser window when authentication is required.
 - **Bounded crawling**: Cap page crawling at 25 pages to prevent infinite loops on sites with dynamic or paginated URLs.
 
+## Validation Test Categories
+
+Every run produces a categorized test report (`.last-test-site.json` — see Phase 6.7a). Stable category IDs and the source phase that produces each:
+
+| Category `id` | Display Name | Source phase | What it covers |
+|---|---|---|---|
+| `site-load` | **Site Load** | Phase 2 | Homepage HTTP status, redirect handling, initial render. One card for the homepage; failures are critical. |
+| `authentication` | **Authentication** | Phase 3 | Anonymous-to-Entra redirect, private-site gate detection, login flow integrity. Critical for private sites. |
+| `page-crawl` | **Page Crawl** | Phase 4 | One card per page tested (up to 25). Each card carries the page URL, HTTP status, and any console errors. Severity scales with HTTP class (5xx → critical, 4xx on public → high). |
+| `web-api` | **Web API** | Phase 5 | One card per `/_api/` endpoint observed during the run. Captures status code, response shape, and remediation hints (table-permissions / site-settings / inner-error settings). |
+| `auth-pages` | **Authenticated Pages** | Phase 5.6 | Pages that only became reachable after login. Skipped when the user opts out of authenticated testing. |
+| `auth-api` | **Authenticated API** | Phase 5.6 | API endpoints that only became callable after login. Skipped when authenticated testing is skipped. |
+| `console` | **Console Health** | Aggregated | Rolled-up count of console errors observed across all phases. Severity is medium by default. |
+
+`plan-alm`'s Validation tab consumes this shape directly — each category becomes a collapsible group in the per-stage sub-tab, and the rolled-up `runOutcome` (`passed` / `passed-with-warnings` / `failed`) drives the green / yellow / red Outcome badge in both the Validation tab and the Execution checklist substep.
+
 **Initial request:** $ARGUMENTS
 
 ---
@@ -512,6 +528,97 @@ For each failure, reiterate the specific remediation guidance from Phase 5.4. Gr
 #### 6.7 Close Browser
 
 - Use `browser_close` to clean up the browser session.
+
+#### 6.7a Write Machine-Readable Report (`.last-test-site.json`)
+
+Always write a structured JSON report to the project root so other skills (notably `plan-alm`) can ingest the run without re-parsing the markdown summary. The file is overwritten on every run.
+
+**Shape:**
+```json
+{
+  "url": "https://contoso.powerappsportals.com",
+  "runAt": "2026-04-29T08:50:00.000Z",
+  "durationSec": 95,
+  "runOutcome": "passed | passed-with-warnings | failed",
+  "summary": {
+    "critical": 0,
+    "high": 1,
+    "medium": 0,
+    "low": 2,
+    "total": 3,
+    "automated": 2,
+    "manual": 1,
+    "passed": 2,
+    "failed": 1,
+    "skipped": 0
+  },
+  "categories": [
+    {
+      "id": "site-load",
+      "name": "Site Load",
+      "icon": "📦",
+      "tests": [
+        {
+          "id": "t01",
+          "name": "Homepage returns 200 OK",
+          "severity": "critical | high | medium | low",
+          "type": "automated | manual",
+          "status": "passed | failed | skipped",
+          "description": "Short why-this-matters sentence.",
+          "steps": ["GET /", "Expect 200"],
+          "expected": "200 OK",
+          "actual": "200 OK",
+          "validates": "Site activation"
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Category mapping** — emit one category per test-site phase that produced findings. Use these stable `id` values so consumers can recognize them:
+
+| `id`             | `name`               | Source phase                                    |
+|------------------|----------------------|-------------------------------------------------|
+| `site-load`      | Site Load            | Phase 2 (homepage HTTP, redirect, render)       |
+| `authentication` | Authentication       | Phase 3 (login redirect, anonymous gate)        |
+| `page-crawl`     | Page Crawl           | Phase 4 (each tested page becomes one card)     |
+| `web-api`        | Web API              | Phase 5 (each tested endpoint becomes one card) |
+| `auth-pages`     | Authenticated Pages  | Phase 5.6 page tests                            |
+| `auth-api`       | Authenticated API    | Phase 5.6 API tests                             |
+| `console`        | Console Health       | Aggregated console errors across all pages      |
+
+**Severity rules** (apply per test card):
+- HTTP 5xx response → `critical`
+- HTTP 4xx response on a public page or a documented public API → `high`
+- HTTP 4xx response on an authenticated-only resource accessed anonymously → `low` (expected gate)
+- Console errors on an otherwise-passing page → `medium`
+- All other findings (info-only) → `low`
+
+**Status rules**:
+- `passed` — assertion held (200, no console errors, expected redirect, etc.)
+- `failed` — assertion did not hold (5xx, 4xx where 200 was expected, login flow broke, etc.)
+- `skipped` — phase or test was deliberately bypassed (e.g. user picked "Skip authenticated pages" in 3.5)
+
+**`summary`** is computed from `categories`:
+- `critical`/`high`/`medium`/`low` — count of tests at each severity, **regardless of status** (so reviewers see the test surface even when everything passed).
+- `total` — total test cards.
+- `automated`/`manual` — split by `type`.
+- `passed`/`failed`/`skipped` — split by `status`.
+
+**`runOutcome`** is the rolled-up verdict:
+- `failed` if any test has `status: "failed"` AND `severity: "critical"` OR `"high"`.
+- `passed-with-warnings` if no critical/high failures but `summary.failed > 0` OR there are console errors logged.
+- `passed` otherwise.
+
+**Write the file** (Node.js, run from the project root):
+```bash
+node -e "require('fs').writeFileSync('.last-test-site.json', process.argv[1])" "$(cat <<'EOF'
+{...the JSON above...}
+EOF
+)"
+```
+or — when invoked from `plan-alm`, the orchestrator may supply the JSON inline. Either way, the marker file location is fixed: `.last-test-site.json` in the project root (sibling to `.last-deploy.json` and `.last-pipeline.json`).
 
 #### 6.8 Suggest Next Steps
 

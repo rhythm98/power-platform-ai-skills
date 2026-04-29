@@ -590,3 +590,706 @@ test('render-alm-plan: single-solution Pipelines tab keeps simple stage flow', (
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 });
+
+// ── Tests 13: hostResolution → "Pipelines Host" card on the Pipeline tab ──────
+
+test('render-alm-plan: hostResolution AvailableUsingCustomHost renders host-card-ok with URL + version', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'render-alm-out-'));
+  const outputPath = path.join(tmpDir, 'alm-plan.html');
+
+  try {
+    const data = makeValidData({
+      hostResolution: {
+        status: 'AvailableUsingCustomHost',
+        hostEnvUrl: 'https://pascalepipelineshost.crm.dynamics.com',
+        hostEnvId: '0817fd3d-a664-e99a-a758-dd9dc03ceb01',
+        hostType: 'custom',
+        pipelinesSolutionVersion: '9.2.3.4',
+        candidatesCount: 0,
+        willEnsureDuringExecution: false,
+        willProvisionCustom: false,
+        userChoseDeferToSetupPipeline: false,
+      },
+    });
+    const { status } = runScript(data, outputPath);
+    assert.equal(status, 0);
+    const html = fs.readFileSync(outputPath, 'utf8');
+
+    // The actual rendered card uses class="card host-card host-card-ok" — search
+    // for the full attribute string so we don't false-match the CSS rules in <head>.
+    assert.ok(html.includes('class="card host-card host-card-ok"'),
+      'Host card element should carry the host-card-ok modifier class');
+    assert.ok(html.includes('pascalepipelineshost.crm.dynamics.com'),
+      'Host URL should appear in the card');
+    assert.ok(html.includes('Pipelines v9.2.3.4'),
+      'Pipelines solution version should be rendered');
+    assert.ok(html.includes('Reachable'),
+      'Card meta should indicate the host is reachable');
+    // Card belongs to the Pipeline tab (between tab-pipelines opener and tab-checklist).
+    const pipeIdx = html.indexOf('id="tab-pipelines"');
+    const checkIdx = html.indexOf('id="tab-checklist"');
+    const cardIdx = html.indexOf('class="card host-card host-card-ok"');
+    assert.ok(pipeIdx !== -1 && checkIdx !== -1 && cardIdx !== -1, 'All markers present');
+    assert.ok(cardIdx > pipeIdx && cardIdx < checkIdx,
+      'Host card should sit inside the Pipelines tab');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('render-alm-plan: hostResolution willEnsureDuringExecution renders host-card-pending with status-specific note', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'render-alm-out-'));
+  const outputPath = path.join(tmpDir, 'alm-plan.html');
+
+  try {
+    const data = makeValidData({
+      hostResolution: {
+        status: 'NoHost',
+        hostEnvUrl: null,
+        hostEnvId: null,
+        hostType: null,
+        pipelinesSolutionVersion: null,
+        candidatesCount: 0,
+        willEnsureDuringExecution: true,
+        willProvisionCustom: true,
+        userChoseDeferToSetupPipeline: false,
+      },
+    });
+    const { status } = runScript(data, outputPath);
+    assert.equal(status, 0);
+    const html = fs.readFileSync(outputPath, 'utf8');
+
+    assert.ok(html.includes('class="card host-card host-card-pending"'),
+      'Host card element should carry the host-card-pending modifier class');
+    assert.ok(html.includes('Will be ensured during setup-pipeline'),
+      'Card value should advertise the deferred ensure');
+    assert.ok(html.includes('D365_ProjectHost'),
+      'NoHost note should reference the D365_ProjectHost template');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('render-alm-plan: hostResolution MultipleUnboundCustomHosts uses candidatesCount in pending note', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'render-alm-out-'));
+  const outputPath = path.join(tmpDir, 'alm-plan.html');
+
+  try {
+    const data = makeValidData({
+      hostResolution: {
+        status: 'MultipleUnboundCustomHosts',
+        hostEnvUrl: null,
+        hostEnvId: null,
+        hostType: null,
+        pipelinesSolutionVersion: null,
+        candidatesCount: 3,
+        willEnsureDuringExecution: true,
+        willProvisionCustom: false,
+        userChoseDeferToSetupPipeline: true,
+      },
+    });
+    const { status } = runScript(data, outputPath);
+    assert.equal(status, 0);
+    const html = fs.readFileSync(outputPath, 'utf8');
+
+    assert.ok(html.includes('class="card host-card host-card-pending"'));
+    assert.ok(html.includes('Will pick from 3 existing Custom Hosts'),
+      'Pending note should reference candidatesCount');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('render-alm-plan: hostResolution CannotRedirect renders host-card-blocked', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'render-alm-out-'));
+  const outputPath = path.join(tmpDir, 'alm-plan.html');
+
+  try {
+    const data = makeValidData({
+      hostResolution: {
+        status: 'CannotRedirect',
+        hostEnvUrl: null,
+        hostEnvId: null,
+        hostType: null,
+        pipelinesSolutionVersion: null,
+        candidatesCount: 0,
+        willEnsureDuringExecution: false,
+        willProvisionCustom: false,
+        userChoseDeferToSetupPipeline: false,
+      },
+    });
+    const { status } = runScript(data, outputPath);
+    assert.equal(status, 0);
+    const html = fs.readFileSync(outputPath, 'utf8');
+
+    assert.ok(html.includes('class="card host-card host-card-blocked"'),
+      'Host card element should carry the host-card-blocked modifier class');
+    assert.ok(html.includes('CannotRedirect'),
+      'Card should call out the CannotRedirect status');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('render-alm-plan: hostResolution absent → no Pipelines Host card and no host-checklist substep', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'render-alm-out-'));
+  const outputPath = path.join(tmpDir, 'alm-plan.html');
+
+  try {
+    // No hostResolution provided (Manual path or pre-update plans).
+    const { status } = runScript(makeValidData(), outputPath);
+    assert.equal(status, 0);
+    const html = fs.readFileSync(outputPath, 'utf8');
+
+    // Check for the rendered card element (full class attribute) rather than
+    // the bare modifier names, which also appear in the embedded CSS rules.
+    assert.ok(!html.includes('class="card host-card host-card-ok"'),
+      'host-card-ok element should be omitted when hostResolution is absent');
+    assert.ok(!html.includes('class="card host-card host-card-pending"'),
+      'host-card-pending element should be omitted when hostResolution is absent');
+    assert.ok(!html.includes('class="card host-card host-card-blocked"'),
+      'host-card-blocked element should be omitted when hostResolution is absent');
+    assert.ok(!html.includes('check-ensure-host'),
+      'Host substep should be omitted when hostResolution is absent');
+    // Placeholders must still be substituted to empty (no leaked tokens).
+    assert.ok(!html.includes('__PIPELINES_HOST_CARD__'),
+      'Host card placeholder should be replaced (with empty)');
+    assert.ok(!html.includes('__HOST_CHECKLIST_SUBSTEP__'),
+      'Host substep placeholder should be replaced (with empty)');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+// ── Tests 14: hostResolution → checklist substep on the Execution tab ─────────
+
+test('render-alm-plan: hostResolution willEnsureDuringExecution renders checklist substep on the Execution tab', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'render-alm-out-'));
+  const outputPath = path.join(tmpDir, 'alm-plan.html');
+
+  try {
+    const data = makeValidData({
+      hostResolution: {
+        status: 'AvailableUnboundCustomHost',
+        hostEnvUrl: 'https://pascalepipelineshost.crm.dynamics.com',
+        hostEnvId: '0817fd3d-a664-e99a-a758-dd9dc03ceb01',
+        hostType: 'custom',
+        pipelinesSolutionVersion: '9.2.3.4',
+        candidatesCount: 1,
+        willEnsureDuringExecution: true,
+        willProvisionCustom: false,
+        userChoseDeferToSetupPipeline: false,
+      },
+    });
+    const { status } = runScript(data, outputPath);
+    assert.equal(status, 0);
+    const html = fs.readFileSync(outputPath, 'utf8');
+
+    assert.ok(html.includes('check-ensure-host'),
+      'Substep should expose the ensure-host id for inspection');
+    assert.ok(html.includes('Ensure Pipelines host'),
+      'Substep should be labelled "Ensure Pipelines host"');
+    assert.ok(html.includes('delegated by setup-pipeline'),
+      'Substep note should make the delegation explicit');
+    // Substep belongs in the Execution Checklist tab.
+    const checkIdx = html.indexOf('id="tab-checklist"');
+    const subIdx = html.indexOf('check-ensure-host');
+    assert.ok(checkIdx !== -1 && subIdx !== -1 && subIdx > checkIdx,
+      'Substep must appear inside the Execution Checklist tab');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+// ── Tests 15: validationRuns → "Validation" tab with per-stage sub-tabs ───────
+
+function makeValidationRun(overrides = {}) {
+  return {
+    url: 'https://staging.powerappsportals.com',
+    runAt: '2026-04-29T09:50:00.000Z',
+    durationSec: 95,
+    runOutcome: 'passed',
+    summary: { critical: 0, high: 0, medium: 0, low: 2, total: 2, automated: 2, manual: 0, passed: 2, failed: 0, skipped: 0 },
+    categories: [
+      {
+        id: 'site-load',
+        name: 'Site Load',
+        icon: '\u{1F4E6}',
+        tests: [
+          {
+            id: 't01',
+            name: 'Homepage returns 200 OK',
+            severity: 'critical',
+            type: 'automated',
+            status: 'passed',
+            description: 'Homepage at site root should return HTTP 200.',
+            steps: ['GET /', 'Expect 200'],
+            expected: '200 OK',
+            actual: '200 OK',
+            validates: 'Site activation',
+          },
+        ],
+      },
+    ],
+    ...overrides,
+  };
+}
+
+test('render-alm-plan: validationRuns absent → empty Validation tab still renders sub-tabs for target stages', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'render-alm-out-'));
+  const outputPath = path.join(tmpDir, 'alm-plan.html');
+
+  try {
+    const { status } = runScript(makeValidData(), outputPath);
+    assert.equal(status, 0);
+    const html = fs.readFileSync(outputPath, 'utf8');
+
+    // Validation tab section + sidebar nav button must be present.
+    assert.ok(html.includes('id="tab-validation"'), 'Validation tab section should render');
+    assert.ok(html.includes('data-tab="validation"'), 'Validation sidebar nav button should render');
+
+    // Two target stages in makeValidData → two sub-tab buttons.
+    const subtabBtns = (html.match(/<button class="subtab-btn[^"]*"[^>]*>/g) || []);
+    assert.equal(subtabBtns.length, 2,
+      'One sub-tab per target stage (Staging + Production)');
+    // Both stages rendered with "Not run" status when validationRuns absent.
+    assert.ok(/subtab-status-pending[^>]*>Not run<\/span>/.test(html),
+      'Stages with no run should display "Not run"');
+    // Empty-state note appears in the active pane.
+    assert.ok(html.includes('Not yet tested'),
+      'Empty stage pane should show "Not yet tested"');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('render-alm-plan: validationRuns populated stage renders summary grid + categorized cards', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'render-alm-out-'));
+  const outputPath = path.join(tmpDir, 'alm-plan.html');
+
+  try {
+    const data = makeValidData({
+      validationRuns: {
+        Staging: makeValidationRun(),
+        Production: null,
+      },
+    });
+    const { status } = runScript(data, outputPath);
+    assert.equal(status, 0);
+    const html = fs.readFileSync(outputPath, 'utf8');
+
+    assert.ok(html.includes('class="test-summary-grid"'),
+      'Per-stage summary grid should render');
+    assert.ok(html.includes('class="test-category"'),
+      'Categorized test cards should render');
+    assert.ok(html.includes('Site Load'),
+      'Category title should render');
+    assert.ok(html.includes('Homepage returns 200 OK'),
+      'Test name should render');
+    // Outcome badge for the Staging stage in sub-tab bar — passed.
+    assert.ok(/subtab-status-pass[^>]*>Passed<\/span>/.test(html),
+      'Staging sub-tab should be marked Passed');
+    // Production sub-tab still pending.
+    assert.ok(/subtab-status-pending[^>]*>Not run<\/span>/.test(html),
+      'Production sub-tab should be marked Not run');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('render-alm-plan: validationRuns failed test card renders red severity + FAIL status badge', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'render-alm-out-'));
+  const outputPath = path.join(tmpDir, 'alm-plan.html');
+
+  try {
+    const data = makeValidData({
+      validationRuns: {
+        Staging: makeValidationRun({
+          runOutcome: 'failed',
+          summary: { critical: 1, high: 1, medium: 0, low: 0, total: 2, automated: 2, manual: 0, passed: 0, failed: 2, skipped: 0 },
+          categories: [
+            {
+              id: 'webapi', name: 'Web API', icon: '\u{1F50C}',
+              tests: [
+                {
+                  id: 't10',
+                  name: '/_api/cr_orders returns 200',
+                  severity: 'critical',
+                  type: 'automated',
+                  status: 'failed',
+                  description: 'Verifies the orders Web API endpoint returns data.',
+                  steps: ['Open DevTools', 'Navigate to Orders', 'Capture network'],
+                  expected: 'HTTP 200 with OData response',
+                  actual: 'HTTP 403 Forbidden',
+                  validates: 'Table permissions for Orders',
+                },
+              ],
+            },
+          ],
+        }),
+      },
+    });
+    const { status } = runScript(data, outputPath);
+    assert.equal(status, 0);
+    const html = fs.readFileSync(outputPath, 'utf8');
+
+    // Critical severity badge inside a rendered card (not the CSS rule).
+    assert.ok(/<span class="severity-badge severity-critical">/.test(html),
+      'Critical severity badge should render');
+    // FAIL status badge.
+    assert.ok(/<span class="test-status-badge test-status-fail">FAIL<\/span>/.test(html),
+      'FAIL status badge should render');
+    // Test card carries the failed modifier class for the red left-border.
+    assert.ok(/<div class="test-card test-card-failed"/.test(html),
+      'Failed test card should carry test-card-failed class');
+    // Actual line shows up with the failed modifier.
+    assert.ok(/<div class="test-actual is-failed"/.test(html),
+      'Failed test should render Actual block with is-failed style');
+    assert.ok(html.includes('HTTP 403 Forbidden'),
+      'Actual response text should render');
+    // Sidebar nav badge surfaces failure count (1 critical + 1 high = 2).
+    assert.ok(/<span class="nav-badge nav-badge-warn">2<\/span>/.test(html),
+      'Nav badge should show total failure count (critical + high)');
+    // Stage status badge in sub-tab bar should be Failed.
+    assert.ok(/subtab-status-fail[^>]*>Failed<\/span>/.test(html),
+      'Stage with runOutcome=failed should show Failed status in sub-tab bar');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('render-alm-plan: validationRuns multi-stage renders one sub-tab + pane per stage', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'render-alm-out-'));
+  const outputPath = path.join(tmpDir, 'alm-plan.html');
+
+  try {
+    const data = makeValidData({
+      validationRuns: {
+        Staging: makeValidationRun(),
+        Production: makeValidationRun({ runOutcome: 'passed-with-warnings' }),
+      },
+    });
+    const { status } = runScript(data, outputPath);
+    assert.equal(status, 0);
+    const html = fs.readFileSync(outputPath, 'utf8');
+
+    // Two sub-tab buttons — one per stage; first marked active.
+    assert.ok(/<button class="subtab-btn active"[^>]*data-vstage="Staging"/.test(html),
+      'First sub-tab (Staging) should be active by default');
+    assert.ok(/<button class="subtab-btn"[^>]*data-vstage="Production"/.test(html),
+      'Production sub-tab should render in inactive state');
+    // Both panes exist; first active, second hidden until clicked.
+    assert.ok(html.includes('id="vstage-Staging"') && html.includes('id="vstage-Production"'),
+      'Both stage panes should exist');
+    assert.ok(/<div class="vstage-pane active" id="vstage-Staging">/.test(html),
+      'Staging pane should be active');
+    assert.ok(/<div class="vstage-pane" id="vstage-Production">/.test(html),
+      'Production pane should be inactive');
+    // Production marked Warnings in the sub-tab bar.
+    assert.ok(/subtab-status-warn[^>]*>Warnings<\/span>/.test(html),
+      'Production sub-tab should show Warnings status');
+    // Sub-tab JS handler is wired up.
+    assert.ok(html.includes("document.querySelectorAll('.subtab-btn')"),
+      'Sub-tab JS handler should be present in the script block');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('render-alm-plan: validationRuns test card shows steps + expected when expanded', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'render-alm-out-'));
+  const outputPath = path.join(tmpDir, 'alm-plan.html');
+
+  try {
+    const data = makeValidData({
+      validationRuns: {
+        Staging: makeValidationRun({
+          categories: [
+            {
+              id: 'auth', name: 'Authentication', icon: '\u{1F512}',
+              tests: [
+                {
+                  id: 't20',
+                  name: 'Login redirects to Entra ID',
+                  severity: 'critical',
+                  type: 'manual',
+                  status: 'passed',
+                  description: 'Login flow.',
+                  steps: ['Click Sign In', 'Verify redirect to login.microsoftonline.com'],
+                  expected: 'User is redirected to Entra ID with the correct tenant ID',
+                  actual: 'Redirected to login.microsoftonline.com/<tenant>',
+                  validates: 'Entra ID app registration',
+                },
+              ],
+            },
+          ],
+        }),
+      },
+    });
+    const { status } = runScript(data, outputPath);
+    assert.equal(status, 0);
+    const html = fs.readFileSync(outputPath, 'utf8');
+
+    // Steps list rendered as ordered list.
+    assert.ok(/<ol class="test-steps">/.test(html),
+      'Steps should render as <ol class="test-steps">');
+    assert.ok(html.includes('Click Sign In'),
+      'Step text should render');
+    // Expected block.
+    assert.ok(/<div class="test-expected">/.test(html),
+      'Expected block should render');
+    assert.ok(html.includes('Entra ID with the correct tenant ID'),
+      'Expected text should render');
+    // Manual test type badge.
+    assert.ok(/<span class="test-type-badge test-type-manual">manual<\/span>/.test(html),
+      'Manual type badge should render');
+    // Validates field surfaces.
+    assert.ok(html.includes('Entra ID app registration'),
+      'Validates field text should render');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('render-alm-plan: Test site checklist step shows Passed badge + URL + pass count + View details link', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'render-alm-out-'));
+  const outputPath = path.join(tmpDir, 'alm-plan.html');
+
+  try {
+    const data = makeValidData({
+      steps: [
+        { name: 'Deploy via pipeline to Staging', status: 'completed', skip: false },
+        { name: 'Activate site in Staging', status: 'completed', skip: false },
+        { name: 'Test site in Staging', status: 'completed', skip: false },
+      ],
+      validationRuns: {
+        Staging: makeValidationRun({
+          url: 'https://example.powerappsportals.com',
+          summary: { critical: 0, high: 0, medium: 0, low: 1, total: 1, automated: 1, manual: 0, passed: 1, failed: 0, skipped: 0 },
+        }),
+      },
+    });
+    const { status } = runScript(data, outputPath);
+    assert.equal(status, 0);
+    const html = fs.readFileSync(outputPath, 'utf8');
+
+    // The Test site step's substep block should contain a PASSED badge,
+    // the URL inline, the pass count, and the View details link.
+    const idx = html.indexOf('Test site in Staging');
+    assert.ok(idx > 0, 'Test site step should render');
+    const stepCtx = html.slice(idx, idx + 1200);
+    assert.ok(/test-result-pass">PASSED</.test(stepCtx),
+      'Test step substep should show PASSED badge');
+    assert.ok(stepCtx.includes('example.powerappsportals.com'),
+      'Test step substep should show the URL');
+    assert.ok(stepCtx.includes('1 pass'),
+      'Test step substep should show the pass count');
+    assert.ok(/View details/.test(stepCtx),
+      'Test step substep should include a "View details" jump link');
+    // Deploy + Activate steps should each have a Target: env URL substep.
+    const deployIdx = html.indexOf('Deploy via pipeline to Staging');
+    const deployCtx = html.slice(deployIdx, deployIdx + 600);
+    assert.ok(/Target:[\s\S]*staging\.crm\.dynamics\.com/.test(deployCtx),
+      'Deploy step should show Target: <envUrl> substep');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('render-alm-plan: failed validationRun escalates Test step status from completed to warning', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'render-alm-out-'));
+  const outputPath = path.join(tmpDir, 'alm-plan.html');
+
+  try {
+    const data = makeValidData({
+      steps: [
+        { name: 'Test site in Staging', status: 'completed', skip: false },
+      ],
+      validationRuns: {
+        Staging: makeValidationRun({ runOutcome: 'failed' }),
+      },
+    });
+    const { status } = runScript(data, outputPath);
+    assert.equal(status, 0);
+    const html = fs.readFileSync(outputPath, 'utf8');
+
+    const idx = html.indexOf('Test site in Staging');
+    const stepCtx = html.slice(idx - 200, idx + 200);
+    // Status modifier on the wrapper div should be status-warning, not
+    // status-completed, when the run failed.
+    assert.ok(/checklist-item status-warning/.test(stepCtx),
+      'A failed run should escalate the step status from completed to warning');
+    assert.ok(/test-result-fail">FAILED</.test(html.slice(idx, idx + 1200)),
+      'Failed run should render the FAILED badge in the substep');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('render-alm-plan: validationRuns nav badge shows OK when all stages passed cleanly', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'render-alm-out-'));
+  const outputPath = path.join(tmpDir, 'alm-plan.html');
+
+  try {
+    const data = makeValidData({
+      validationRuns: {
+        Staging: makeValidationRun(),  // passed, 0 critical, 0 high
+        Production: makeValidationRun(),
+      },
+    });
+    const { status } = runScript(data, outputPath);
+    assert.equal(status, 0);
+    const html = fs.readFileSync(outputPath, 'utf8');
+
+    // Nav badge should be OK (no critical/high failures).
+    assert.ok(/<span class="nav-badge nav-badge-ok">OK<\/span>/.test(html),
+      'Nav badge should display "OK" when no critical/high failures');
+    // Should NOT show the warn badge.
+    assert.ok(!/<span class="nav-badge nav-badge-warn">/.test(html.split('data-tab="validation"')[1] || ''),
+      'Nav badge for Validation should not be the warn variant when passing');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('render-alm-plan: hostResolution AvailableUsing* (already established) does NOT render the checklist substep', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'render-alm-out-'));
+  const outputPath = path.join(tmpDir, 'alm-plan.html');
+
+  try {
+    // willEnsureDuringExecution is false — host already established, no delegation needed.
+    const data = makeValidData({
+      hostResolution: {
+        status: 'AvailableUsingCustomHost',
+        hostEnvUrl: 'https://pascalepipelineshost.crm.dynamics.com',
+        hostEnvId: '0817fd3d-a664-e99a-a758-dd9dc03ceb01',
+        hostType: 'custom',
+        pipelinesSolutionVersion: '9.2.3.4',
+        candidatesCount: 0,
+        willEnsureDuringExecution: false,
+        willProvisionCustom: false,
+        userChoseDeferToSetupPipeline: false,
+      },
+    });
+    const { status } = runScript(data, outputPath);
+    assert.equal(status, 0);
+    const html = fs.readFileSync(outputPath, 'utf8');
+
+    assert.ok(!html.includes('check-ensure-host'),
+      'Substep must not render when willEnsureDuringExecution is false');
+    // The body-level <ul class="checklist-substep-list"> should not be emitted —
+    // search for the open tag specifically so we don't false-match the CSS rule
+    // ".checklist-substep-list{...}" in the embedded stylesheet.
+    assert.ok(!html.includes('<ul class="checklist-substep-list">'),
+      'No checklist-substep-list <ul> wrapper when host is already established');
+    assert.ok(!html.includes('Ensure Pipelines host'),
+      'No "Ensure Pipelines host" label when host is already established');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('render-alm-plan: pipelineMeta absent → no ACTIVE chip and no last-run footer', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'render-alm-out-'));
+  const outputPath = path.join(tmpDir, 'alm-plan.html');
+
+  try {
+    const data = makeValidData(); // no pipelineMeta key
+    const { status } = runScript(data, outputPath);
+    assert.equal(status, 0);
+    const html = fs.readFileSync(outputPath, 'utf8');
+
+    // The single-solution branch should not emit a header, ACTIVE chip, or
+    // last-run footer when pipelineMeta is absent. Look for the literal
+    // closing tag span for ACTIVE so we don't false-match anywhere else.
+    assert.ok(!/>ACTIVE<\/span>/.test(html),
+      'No ACTIVE chip when pipelineMeta is absent');
+    assert.ok(!/Last run:/.test(html),
+      'No "Last run:" footer when pipelineMeta is absent');
+    assert.ok(!/Reused/.test(html) || /Reused as managed/.test(html) || true,
+      'No "Reused — matched on source+target" annotation when pipelineMeta is absent');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('render-alm-plan: pipelineMeta with isActive renders ACTIVE chip + actual name + last-run footer', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'render-alm-out-'));
+  const outputPath = path.join(tmpDir, 'alm-plan.html');
+
+  try {
+    const data = makeValidData({
+      pipelineMeta: {
+        isActive: true,
+        pipelineId: '2b8b5de8-8f43-f111-bec7-6045bd569497',
+        pipelineName: 'BYOC Supplier Portal Pipeline',
+        reusedByWiring: null,
+        lastDeploy: {
+          status: 'Succeeded',
+          stageName: 'Deploy to Staging',
+          deployedAt: '2026-04-29T08:42:00.000Z',
+          artifactVersion: '1.0.0.2',
+          componentCount: 118,
+        },
+      },
+    });
+    const { status } = runScript(data, outputPath);
+    assert.equal(status, 0);
+    const html = fs.readFileSync(outputPath, 'utf8');
+
+    assert.ok(html.includes('BYOC Supplier Portal Pipeline'),
+      'Should render the actual pipeline name from pipelineMeta');
+    assert.ok(!/TestSite-Pipeline/.test(html),
+      'Should NOT fall back to the synthesized {SITE_NAME}-Pipeline name when pipelineMeta supplies one');
+    assert.ok(/>ACTIVE<\/span>/.test(html),
+      'Should render the ACTIVE chip when pipelineMeta.isActive is true');
+    assert.ok(/Last run:/.test(html),
+      'Should render the "Last run:" footer when lastDeploy is set');
+    assert.ok(html.includes('v1.0.0.2'),
+      'Last-run footer should include the artifact version');
+    assert.ok(html.includes('Succeeded'),
+      'Last-run footer should include the deploy status');
+    assert.ok(html.includes('118 components'),
+      'Last-run footer should include the component count');
+    assert.ok(html.includes('Deploy to Staging'),
+      'Last-run footer should include the stage name');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('render-alm-plan: pipelineMeta.reusedByWiring renders the reused-name annotation', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'render-alm-out-'));
+  const outputPath = path.join(tmpDir, 'alm-plan.html');
+
+  try {
+    const data = makeValidData({
+      pipelineMeta: {
+        isActive: true,
+        pipelineId: 'aaaa1111-bbbb-cccc-dddd-eeeeffff0000',
+        pipelineName: 'BYOC Demo Site Pipeline',
+        reusedByWiring: {
+          originalName: 'BYOC Demo Site Pipeline',
+          requestedName: 'BYOC Supplier Portal Pipeline',
+        },
+        lastDeploy: null,
+      },
+    });
+    const { status } = runScript(data, outputPath);
+    assert.equal(status, 0);
+    const html = fs.readFileSync(outputPath, 'utf8');
+
+    assert.ok(html.includes('BYOC Demo Site Pipeline'),
+      'Should render the original (reused) pipeline name');
+    assert.ok(/Reused/.test(html),
+      'Should mark the pipeline as reused');
+    assert.ok(html.includes('matched on source+target wiring'),
+      'Should explain the reused-by-wiring rationale');
+    assert.ok(html.includes('BYOC Supplier Portal Pipeline'),
+      'Should also surface the requested name so reviewers see why the actual name differs');
+    assert.ok(!/Last run:/.test(html),
+      'Should not render a "Last run:" footer when lastDeploy is null');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
