@@ -280,9 +280,37 @@ https://<env>.crm.dynamics.com/main.aspx?appid=<app-id>&pagetype=genux&id=<page-
 4. If a sign-in page appears, use `browser_click` on the sign-in option, then `browser_wait_for`
 5. Use `browser_wait_for` for the genux page content to render
 
-#### 7.2 Structural Verification
+#### 7.2 Structural Verification (Including Below-the-Fold Content)
 
-Use `browser_snapshot` and verify expected DOM elements based on the page type:
+Take an initial `browser_snapshot` to capture above-the-fold content.
+
+**Check whether the page extends beyond the viewport:**
+
+```javascript
+browser_evaluate(() => ({
+  scrollHeight: document.documentElement.scrollHeight,
+  clientHeight: document.documentElement.clientHeight
+}))
+```
+
+**If `scrollHeight > clientHeight`, the page has content below the fold.** Scroll
+through to verify all sections render:
+
+1. Scroll to the bottom:
+   ```javascript
+   browser_evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
+   ```
+2. Take a fresh `browser_snapshot` to capture below-the-fold content
+3. For very tall pages (e.g., long lists, multi-section dashboards), scroll
+   incrementally and snapshot each section:
+   ```javascript
+   browser_evaluate(() => window.scrollBy(0, window.innerHeight))
+   ```
+4. Use `browser_take_screenshot` at each scroll position if you want visual capture
+   of the full page
+
+Verify that all expected DOM elements (per the table below) are present somewhere
+on the page — not just in the initial above-the-fold snapshot.
 
 | Page Type | Expected Elements |
 |-----------|-------------------|
@@ -293,6 +321,11 @@ Use `browser_snapshot` and verify expected DOM elements based on the page type:
 | Card Layout | Card containers with content |
 | File Upload | File input or drop zone element |
 | Navigation Sidebar | Nav element with menu items |
+
+**Scroll back to the top before interactive testing:**
+```javascript
+browser_evaluate(() => window.scrollTo(0, 0))
+```
 
 #### 7.3 Interactive Testing
 
@@ -311,7 +344,13 @@ Test interactions based on the page type. **Always take a fresh `browser_snapsho
 
 #### 7.4 Visual Confirmation
 
-Use `browser_take_screenshot` to capture a final screenshot.
+Use `browser_take_screenshot` to capture the page in its final verified state.
+
+For pages taller than the viewport, capture multiple screenshots by scrolling:
+take one at the top (`window.scrollTo(0, 0)`), one or more at intermediate scroll
+positions for long pages, and one at the bottom
+(`window.scrollTo(0, document.documentElement.scrollHeight)`). This gives a complete
+visual record for the deployment summary.
 
 #### 7.5 Fix and Re-deploy
 
